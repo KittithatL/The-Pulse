@@ -6,7 +6,8 @@ import Layout from './components/Layout';
 import Projects from './pages/Projects';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import ProjectTasks from './pages/ProjectTask'; // ✅ เพิ่ม
+import ProjectTasks from './pages/ProjectTask';
+import MyTasks from './pages/Mytasks';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -48,7 +49,12 @@ function AppRoutes() {
   };
 
   return (
-    <BrowserRouter>
+    <BrowserRouter 
+      future={{ 
+        v7_startTransition: true, 
+        v7_relativeSplatPath: true 
+      }}
+    >
       <Toaster
         position="top-right"
         toastOptions={{
@@ -124,32 +130,29 @@ function AppRoutes() {
         />
 
         <Route
-          path="/my-day"
+          path="/my-tasks"
           element={
             <ProtectedRoute>
               <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">My Day</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
+                <MyTasks searchQuery={searchQuery} />
               </Layout>
             </ProtectedRoute>
           }
         />
 
-        <Route
-          path="/tasks"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Tasks</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/my-days"
+            element={
+              <ProtectedRoute>
+                <Layout onSearch={handleSearch}>
+                  <div className="text-center py-20">
+                    <h1 className="text-4xl font-bold text-gray-800">My Day</h1>
+                    <p className="text-gray-600 mt-4">Coming soon...</p>
+                  </div>
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
         <Route
           path="/project-flow"
@@ -306,8 +309,8 @@ function AppRoutes() {
         />
 
         {/* Default */}
-        <Route path="/" element={<Navigate to="/projects" replace />} />
-        <Route path="*" element={<Navigate to="/projects" replace />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   );

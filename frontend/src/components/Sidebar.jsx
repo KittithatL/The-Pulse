@@ -24,9 +24,9 @@ const Sidebar = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'DASHBOARD', path: '/dashboard' },
-    { icon: Calendar, label: 'MY DAY', path: '/my-day' },
     { icon: LayoutDashboard, label: 'PROJECTS', path: '/projects' },
-    { icon: CheckSquare, label: 'MY TASKS', path: '/tasks' },
+    { icon: CheckSquare, label: 'MY TASKS', path: '/my-tasks' },
+    { icon: Calendar, label: 'MY DAY', path: '/my-days' },
     { icon: GitBranch, label: 'PROJECT FLOW', path: '/project-flow' },
     { icon: BarChart3, label: 'RETRO BOARD', path: '/retro-board' },
     { icon: DollarSign, label: 'FINANCIAL HUB', path: '/financial-hub' },

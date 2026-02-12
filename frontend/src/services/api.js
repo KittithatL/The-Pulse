@@ -9,19 +9,7 @@ const api = axios.create({
   },
 });
 
-// ✅ ใส่ token ให้อัตโนมัติทุก request
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token'); // ต้องเก็บชื่อ key นี้ตอน login
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// ✅ Attach token to every request
+// ✅ แนบ Token ให้อัตโนมัติ (เหลืออันเดียวพอครับ)
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -33,6 +21,19 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// 🛡️ เพิ่มการตรวจจับ Error 401 (Token หมดอายุ)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // ถ้า Token เน่า ให้ล้าง localStorage และอาจจะสั่ง window.location.reload()
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // window.location.href = '/login'; // หรือใช้ logic อื่นๆ ในการ redirect
+    }
+    return Promise.reject(error);
+  }
+);
 
 export const projectAPI = {
   getProjects: () => api.get('/projects'),
@@ -49,14 +50,15 @@ export const projectAPI = {
 export const taskAPI = {
   getTasks: (projectId, params) => api.get(`/projects/${projectId}/tasks`, { params }),
   getTask: (id) => api.get(`/tasks/${id}`),
+  getMyTasks: () => api.get('/myTasks'),
   createTask: (projectId, data) => api.post(`/projects/${projectId}/tasks`, data),
+  updateTaskStatus: (taskId, status) => api.patch(`/myTasks/${taskId}/status`, { status }),
   updateTask: (id, data) => api.put(`/tasks/${id}`, data),
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   getMessages: (taskId) => api.get(`/tasks/${taskId}/messages`),
   sendMessage: (taskId, data) => api.post(`/tasks/${taskId}/messages`, data),
   deleteMessage: (messageId) => api.delete(`/messages/${messageId}`),
 };
-
 
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),

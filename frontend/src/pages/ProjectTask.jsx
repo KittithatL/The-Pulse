@@ -247,6 +247,13 @@ const ProjectTasks = () => {
     return false;
   }, [user, project]);
 
+const canEditOrMove = (task) => {
+  if (isOwner) return true;
+  if (!user || !task) return false;
+
+  return String(task.assigned_to) === String(user.id);
+};
+
   const fetchAll = async () => {
     setLoading(true);
     try {
@@ -296,17 +303,24 @@ const ProjectTasks = () => {
 }, [tasks]);
 
 
-  const normalizePayload = (form) => ({
-    title: form.title?.trim(),
-    description: form.description?.trim() || null,
-    status: form.status || 'todo',
-    start_at: form.start_at || null,
-    deadline: form.deadline || null,
-    dor: stringifyChecklist(form.dorItems),
-    dod: stringifyChecklist(form.dodItems),
-    // ✅ assign field (ถ้า backend ใช้ชื่ออื่น บอกผม)
-    assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
-  });
+  const normalizePayload = (form) => {
+    const payload = {
+      title: form.title?.trim(),
+      description: form.description?.trim() || null,
+      status: form.status || 'todo',
+      start_at: form.start_at || null,
+      deadline: form.deadline || null,
+      dor: stringifyChecklist(form.dorItems),
+      dod: stringifyChecklist(form.dodItems),
+      assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
+    };
+
+    // 🚩 ล้างทุกอย่างที่อาจเป็น ID ทิ้ง เพื่อป้องกัน Backend สับสน
+    delete payload.id;
+    delete payload.task_id;
+
+    return payload;
+  };
 
   const openDetail = (task) => {
     setDetailTask(task);
@@ -332,10 +346,10 @@ const ProjectTasks = () => {
     e.preventDefault();
     if (!detailTask) return;
 
-    if (!isOwner) {
-      toast.error('Only project owner can edit tasks');
-      return;
-    }
+    if (!canEditOrMove(detailTask)) {
+    toast.error('Only project owner or assignee can edit this task');
+    return;
+  }
 
     const title = (detailForm.title || '').trim();
     if (!title) return toast.error('Task title is required');
@@ -358,41 +372,33 @@ const ProjectTasks = () => {
   const createTask = async (e) => {
     e.preventDefault();
 
-    if (!isOwner) {
-      toast.error('Only project owner can create tasks');
-      return;
-    }
 
     const title = (createForm.title || '').trim();
     if (!title) return toast.error('Task title is required');
 
     setCreating(true);
     try {
-      await taskAPI.createTask(projectId, normalizePayload(createForm));
-      toast.success('Task created');
-      setShowCreate(false);
-      setCreateForm({
-        title: '',
-        description: '',
-        status: 'todo',
-        start_at: '',
-        deadline: '',
-        dorItems: [],
-        dodItems: [],
-        assigned_to: '',
-      });
-      fetchAll();
-    } catch (err) {
-      console.error(err);
-      toast.error(err?.response?.data?.message || 'Failed to create task');
-    } finally {
-      setCreating(false);
-    }
-  };
+    // Backend ที่เราเขียนกันก่อนหน้าจะจัดการเรื่อง assigned_to ให้เอง
+    await taskAPI.createTask(projectId, normalizePayload(createForm));
+    toast.success('Task created');
+    setShowCreate(false);
+    
+    setCreateForm({
+      title: '', description: '', status: 'todo',
+      start_at: '', deadline: '', dorItems: [], dodItems: [],
+      assigned_to: '',
+    });
+    fetchAll();
+  } catch (err) {
+    toast.error(err?.response?.data?.message || 'Failed to create task');
+  } finally {
+    setCreating(false);
+  }
+};
 
   const deleteTask = async (task) => {
-    if (!isOwner) {
-      toast.error('Only project owner can delete tasks');
+    if (!canEditOrMove(task)) {
+      toast.error('Only project owner or assignee can delete tasks'); // ปรับข้อความให้ตรงกับสิทธิ์ใหม่
       return;
     }
 
@@ -403,7 +409,15 @@ const ProjectTasks = () => {
     try {
       await taskAPI.deleteTask(id);
       toast.success('Task deleted');
-      fetchAll();
+      
+      // ✅ 1. สั่งปิด Pop-up ทันที
+      setShowDetail(false); 
+      
+      // ✅ 2. ล้างค่า Task ใน State (กัน Error จากการ Render ข้อมูลที่ถูกลบไปแล้ว)
+      setDetailTask(null);
+
+      // 3. อัปเดตรายการงานหน้าจอ
+      fetchAll(); 
     } catch (err) {
       console.error(err);
       toast.error(err?.response?.data?.message || 'Failed to delete task');
@@ -427,17 +441,19 @@ const ProjectTasks = () => {
   };
 
   const onDragEnd = async (result) => {
-    if (!isOwner) {
-      toast.error('Only project owner can move tasks');
-      return;
-    }
-
     const { source, destination, draggableId } = result;
 
-    if (!destination) return;
-    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+  if (!destination) return;
+  if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
-    const prevTasks = tasks;
+  const draggedTask = tasks.find(t => getTaskId(t) === draggableId);
+
+  if (!canEditOrMove(draggedTask)) {
+    toast.error('คุณสามารถย้ายได้เฉพาะงานที่คุณได้รับมอบหมายเท่านั้น');
+    return;
+  }
+
+  const prevTasks = tasks;
 
     const sourceKey = source.droppableId;
     const destKey = destination.droppableId;
@@ -520,10 +536,10 @@ const ProjectTasks = () => {
                 'text-xs font-extrabold px-3 py-1 rounded-full border',
                 isOwner
                   ? 'bg-green-50 text-green-700 border-green-200'
-                  : 'bg-gray-50 text-gray-600 border-gray-200',
+                  : 'bg-blue-50 text-blue-600 border-blue-200', // เปลี่ยนสีให้ดูมีสิทธิ์ขึ้น
               ].join(' ')}
             >
-              {isOwner ? 'OWNER MODE' : 'VIEW ONLY'}
+              {isOwner ? 'OWNER MODE' : 'MEMBER MODE'} {/* ✅ เปลี่ยนจาก VIEW ONLY */}
             </span>
           </div>
         </div>
@@ -531,14 +547,9 @@ const ProjectTasks = () => {
         <button
           type="button"
           onClick={() => setShowCreate(true)}
-          disabled={!isOwner}
-          className={[
-            'px-5 py-3 rounded-lg flex items-center gap-2 transition-colors font-semibold',
-            isOwner
-              ? 'bg-primary hover:bg-primary-dark text-white'
-              : 'bg-gray-200 text-gray-500 cursor-not-allowed',
-          ].join(' ')}
-          title={!isOwner ? 'Only project owner can create tasks' : 'New Task'}
+          // ✅ ปลดล็อกให้ทุกคนในโปรเจกต์กดได้
+          className="px-5 py-3 rounded-lg flex items-center gap-2 transition-colors font-semibold bg-primary hover:bg-primary-dark text-white shadow-sm"
+          title="New Task"
         >
           <Plus className="w-5 h-5" />
           New Task
@@ -558,7 +569,7 @@ const ProjectTasks = () => {
                 <span className="text-xs font-semibold text-gray-400">{grouped[col.key].length}</span>
               </div>
 
-              <Droppable droppableId={col.key} isDropDisabled={!isOwner}>
+              <Droppable droppableId={col.key} isDropDisabled={false}>
                 {(provided, snapshot) => (
                   <div
                     ref={provided.innerRef}
@@ -575,7 +586,7 @@ const ProjectTasks = () => {
                         const id = getTaskId(t);
                         const assignee = assignedLabel(t);
                         return (
-                          <Draggable key={id} draggableId={id} index={index} isDragDisabled={!isOwner}>
+                          <Draggable key={id} draggableId={id} index={index} isDragDisabled={!canEditOrMove(t)}>
                             {(dragProvided, dragSnapshot) => (
                               <div
                                 ref={dragProvided.innerRef}
@@ -596,9 +607,11 @@ const ProjectTasks = () => {
                                       onClick={(e) => e.stopPropagation()}
                                       className={[
                                         'mt-0.5 p-1 rounded-lg',
-                                        isOwner ? 'hover:bg-gray-50 text-gray-400' : 'text-gray-300 cursor-not-allowed',
+                                        // ✅ เปลี่ยนจาก isOwner เป็น canEditOrMove(t)
+                                        canEditOrMove(t) ? 'hover:bg-gray-50 text-gray-400' : 'text-gray-300 cursor-not-allowed',
                                       ].join(' ')}
-                                      title={isOwner ? 'Drag' : 'Owner only'}
+                                      // ✅ เปลี่ยนข้อความ Tooltip ให้สื่อความหมาย
+                                      title={canEditOrMove(t) ? 'Drag to move' : 'No permission to move'}
                                     >
                                       <GripVertical className="w-4 h-4" />
                                     </div>
@@ -635,16 +648,16 @@ const ProjectTasks = () => {
                                 <div className="mt-3 flex justify-end">
                                   <button
                                     type="button"
-                                    disabled={!isOwner}
+                                    disabled={!canEditOrMove(t)}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       deleteTask(t);
                                     }}
                                     className={[
                                       'p-2 rounded-lg',
-                                      isOwner ? 'hover:bg-red-50' : 'opacity-40 cursor-not-allowed',
+                                      canEditOrMove(t) ? 'hover:bg-red-50' : 'opacity-40 cursor-not-allowed',
                                     ].join(' ')}
-                                    title={!isOwner ? 'Owner only' : 'Delete'}
+                                    title={!canEditOrMove(t) ? 'Owner only' : 'Delete'}
                                   >
                                     <Trash2 className="w-4 h-4 text-red-600" />
                                   </button>
@@ -676,19 +689,13 @@ const ProjectTasks = () => {
               </button>
             </div>
 
-            {!isOwner && (
-              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Only project owner can create tasks.
-              </div>
-            )}
-
             <form onSubmit={createTask} className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-2">TITLE *</label>
                   <input
                     value={createForm.title}
-                    disabled={!isOwner}
+                    // disabled={!isOwner}
                     onChange={(e) => setCreateForm((p) => ({ ...p, title: e.target.value }))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
                     required
@@ -696,16 +703,17 @@ const ProjectTasks = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-2">STATUS</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-2">ASSIGN TO</label>
                   <select
-                    value={createForm.status}
-                    disabled={!isOwner}
-                    onChange={(e) => setCreateForm((p) => ({ ...p, status: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-gray-50"
+                    value={createForm.assigned_to || ''} // ✅ เปลี่ยนจาก detailForm เป็น createForm
+                    disabled={!isOwner} // ✅ Member จะเลือกไม่ได้ (Backend จะล็อกให้เป็นตัวเองอัตโนมัติ)
+                    onChange={(e) => setCreateForm(p => ({ ...p, assigned_to: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-gray-100"
                   >
-                    {STATUS_COLS.map((c) => (
-                      <option key={c.key} value={c.key}>
-                        {c.label}
+                    <option value="">— Assign to Myself —</option>
+                    {members.map((m) => (
+                      <option key={m.user_id} value={String(m.user_id)}>
+                        {(m.username || '').toUpperCase()}
                       </option>
                     ))}
                   </select>
@@ -716,7 +724,7 @@ const ProjectTasks = () => {
                 <label className="block text-xs font-semibold text-gray-500 mb-2">DESCRIPTION</label>
                 <textarea
                   value={createForm.description}
-                  disabled={!isOwner}
+                  // disabled={!isOwner}
                   onChange={(e) => setCreateForm((p) => ({ ...p, description: e.target.value }))}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
                   rows={3}
@@ -729,7 +737,7 @@ const ProjectTasks = () => {
                   <input
                     type="date"
                     value={createForm.start_at}
-                    disabled={!isOwner}
+                    // disabled={!isOwner}
                     onChange={(e) => setCreateForm((p) => ({ ...p, start_at: e.target.value }))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
                   />
@@ -740,7 +748,7 @@ const ProjectTasks = () => {
                   <input
                     type="date"
                     value={createForm.deadline}
-                    disabled={!isOwner}
+                    // disabled={!isOwner}
                     onChange={(e) => setCreateForm((p) => ({ ...p, deadline: e.target.value }))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
                   />
@@ -751,10 +759,10 @@ const ProjectTasks = () => {
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-2">ASSIGN TO</label>
                 <select
-                  value={createForm.assigned_to}
+                  value={detailForm.assigned_to || ''}
                   disabled={!isOwner}
-                  onChange={(e) => setCreateForm((p) => ({ ...p, assigned_to: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-gray-50"
+                  onChange={(e) => setDetailForm(p => ({ ...p, assigned_to: e.target.value }))}
+                  className="..."
                 >
                   <option value="">— Unassigned —</option>
                   {members.map((m) => (
@@ -775,14 +783,14 @@ const ProjectTasks = () => {
                 <ChecklistEditor
                   label="DoD (Definition of Done)"
                   valueItems={createForm.dodItems}
-                  onChange={(dodItems) => setCreateForm((p) => ({ ...p, dodItems }))}
-                  disabled={!isOwner}
+                  onChange={(items) => setDetailForm(p => ({ ...p, dodItems: items }))}
+                  disabled={!isOwner} 
                 />
               </div>
 
               <button
                 type="submit"
-                disabled={creating || !isOwner}
+                disabled={creating}
                 className="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg disabled:opacity-60"
               >
                 {creating ? 'Creating...' : 'Create Task'}
@@ -828,7 +836,7 @@ const ProjectTasks = () => {
                   <label className="block text-xs font-semibold text-gray-500 mb-2">TITLE *</label>
                   <input
                     value={detailForm.title}
-                    disabled={!isOwner}
+                    disabled={!canEditOrMove(detailTask)}
                     onChange={(e) => setDetailForm((p) => ({ ...p, title: e.target.value }))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
                     required
@@ -839,7 +847,7 @@ const ProjectTasks = () => {
                   <label className="block text-xs font-semibold text-gray-500 mb-2">STATUS</label>
                   <select
                     value={detailForm.status}
-                    disabled={!isOwner}
+                    disabled={!canEditOrMove(detailTask)}
                     onChange={(e) => setDetailForm((p) => ({ ...p, status: e.target.value }))}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-gray-50"
                   >
@@ -910,7 +918,7 @@ const ProjectTasks = () => {
                   label="DoR (Definition of Ready)"
                   valueItems={detailForm.dorItems}
                   onChange={(dorItems) => setDetailForm((p) => ({ ...p, dorItems }))}
-                  disabled={!isOwner}
+                  disabled={!canEditOrMove(detailTask)}
                 />
                 <ChecklistEditor
                   label="DoD (Definition of Done)"
@@ -923,7 +931,7 @@ const ProjectTasks = () => {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="submit"
-                  disabled={savingDetail || !isOwner}
+                  disabled={savingDetail || !canEditOrMove(detailTask)}
                   className="flex-1 bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg disabled:opacity-60 inline-flex items-center justify-center gap-2"
                 >
                   <Save className="w-5 h-5" />
@@ -943,14 +951,13 @@ const ProjectTasks = () => {
             <div className="mt-4">
               <button
                 type="button"
-                disabled={!isOwner}
+                disabled={!canEditOrMove(detailTask)}
                 onClick={() => {
-                  closeDetail();
                   deleteTask(detailTask);
                 }}
                 className={[
                   'text-sm font-bold',
-                  isOwner ? 'text-red-600 hover:text-red-700' : 'text-gray-400 cursor-not-allowed',
+                  canEditOrMove(detailTask) ? 'text-red-600 hover:text-red-700' : 'text-gray-400 cursor-not-allowed',
                 ].join(' ')}
               >
                 Delete this task
