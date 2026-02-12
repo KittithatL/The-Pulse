@@ -132,55 +132,60 @@ const createTask = async (req, res) => {
     }
 
     const {
-      title,
-      description,
-      status,
-      start_at,
-      deadline,
-      dor,
-      dod,
-      assigned_to, // ✅ ใช้ชื่อนี้
+      title, description, status, start_at, deadline, dor, dod, assigned_to
     } = req.body;
 
     if (!title || !String(title).trim()) {
       return res.status(400).json({ success: false, message: 'Task title is required' });
     }
 
-    // must be project member
+    // 1. ตรวจสอบสิทธิ์การเป็น Member และดึง Role
     const memberCheck = await db.query(
-      `SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2`,
+      'SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2',
       [projectId, userId]
     );
+
     if (memberCheck.rows.length === 0) {
       return res.status(403).json({ success: false, message: 'You are not a member of this project' });
     }
 
-    // validate assignee
-    let assignedTo = null;
-    try {
-      assignedTo = await ensureAssigneeIsProjectMember(projectId, assigned_to);
-    } catch (e) {
-      return res.status(e.statusCode || 400).json({ success: false, message: e.message });
+    const role = memberCheck.rows[0].role;
+    let assignedToFinal = userId; // ค่าเริ่มต้นเป็นตัวเอง
+
+    // 2. 🛡️ Logic การกำหนดผู้รับผิดชอบ (Assignment Logic)
+    if (role === 'owner') {
+      // ถ้าเป็น PM และมีการส่ง assigned_to มา ให้ตรวจสอบก่อนว่าคนนั้นอยู่ในโปรเจกต์ไหม
+      if (assigned_to) {
+        try {
+          assignedToFinal = await ensureAssigneeIsProjectMember(projectId, assigned_to);
+        } catch (e) {
+          return res.status(400).json({ success: false, message: e.message });
+        }
+      }
+    } else {
+      // ถ้าเป็น Member ทั่วไป บังคับให้ assign ตัวเองเท่านั้น
+      assignedToFinal = userId;
     }
 
+    // 3. บันทึกลง Database
     const result = await db.query(
       `INSERT INTO tasks (
-        project_id, title, description, created_by,
-        status, start_at, deadline, dor, dod,
-        assigned_to
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        project_id, title, description, created_by, 
+        status, assigned_to, dor, dod, start_at, deadline
+      ) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
       RETURNING *`,
       [
-        projectId,
-        String(title).trim(),
-        description ?? null,
-        userId,
-        status ?? 'todo',
-        start_at ?? null,
-        deadline ?? null,
-        dor ?? null,
-        dod ?? null,
-        assignedTo,
+        projectId, 
+        String(title).trim(), 
+        description || null, 
+        userId, 
+        status || 'todo', 
+        assignedToFinal, 
+        dor || null, 
+        dod || null, 
+        start_at || null, 
+        deadline || null
       ]
     );
 
@@ -204,8 +209,9 @@ const updateTask = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
+    // 1. ดึงข้อมูล Task มาตรวจสอบ
     const taskCheck = await db.query(
-      'SELECT created_by, project_id FROM tasks WHERE id = $1',
+      'SELECT created_by, project_id, assigned_to FROM tasks WHERE id = $1', 
       [taskId]
     );
 
@@ -215,44 +221,38 @@ const updateTask = async (req, res) => {
 
     const task = taskCheck.rows[0];
 
-    // must be member + (creator or owner)
+    // 2. ตรวจสอบ Role ในโปรเจกต์
     const memberCheck = await db.query(
       'SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2',
       [task.project_id, userId]
     );
+
     if (memberCheck.rows.length === 0) {
-      return res.status(403).json({ success: false, message: 'You do not have permission to update this task' });
+      return res.status(403).json({ success: false, message: 'Permission denied: Not a member' });
     }
 
     const role = memberCheck.rows[0].role;
-    const isCreator = Number(task.created_by) === Number(userId);
     const isOwner = role === 'owner';
+    const isAssignee = task.assigned_to && Number(task.assigned_to) === Number(userId);
 
-    if (!isCreator && !isOwner) {
-      return res.status(403).json({ success: false, message: 'You do not have permission to update this task' });
+    // 3. เช็คสิทธิ์การเข้าถึง: ต้องเป็น PM (Owner) หรือ ผู้รับผิดชอบงาน (Assignee) เท่านั้น
+    if (!isOwner && !isAssignee) {
+      return res.status(403).json({ success: false, message: 'Permission denied: Only Owner or Assignee can update' });
+    }
+
+    // 4. 🛡️ ข้อจำกัดการแก้ไข (🔒 Security Layer)
+    if (!isOwner) {
+      // ห้าม Member แก้ไข DoD
+      if (req.body.dod !== undefined) delete req.body.dod;
+      // ห้าม Member เปลี่ยนตัวผู้รับผิดชอบ (ป้องกันการโยนงาน)
+      if (req.body.assigned_to !== undefined) delete req.body.assigned_to;
     }
 
     const {
-      title,
-      description,
-      status,
-      start_at,
-      deadline,
-      dor,
-      dod,
-      assigned_to, // ✅
+      title, description, status, start_at, deadline, dor, dod, assigned_to
     } = req.body;
 
-    // validate assignee if provided
-    let assignedTo;
-    if (assigned_to !== undefined) {
-      try {
-        assignedTo = await ensureAssigneeIsProjectMember(task.project_id, assigned_to);
-      } catch (e) {
-        return res.status(e.statusCode || 400).json({ success: false, message: e.message });
-      }
-    }
-
+    // 5. เตรียมข้อมูล Update
     const updateData = {};
     if (title !== undefined) updateData.title = title;
     if (description !== undefined) updateData.description = description;
@@ -260,16 +260,21 @@ const updateTask = async (req, res) => {
     if (start_at !== undefined) updateData.start_at = start_at;
     if (deadline !== undefined) updateData.deadline = deadline;
     if (dor !== undefined) updateData.dor = dor;
-    if (dod !== undefined) updateData.dod = dod;
-    if (assigned_to !== undefined) updateData.assigned_to = assignedTo; // ✅
+    if (dod !== undefined) updateData.dod = dod; // จะเหลือแค่กรณี isOwner เท่านั้น
+    
+    // จัดการเรื่อง Assigned To (เฉพาะกรณีเป็น Owner)
+    if (isOwner && assigned_to !== undefined) {
+      updateData.assigned_to = await ensureAssigneeIsProjectMember(task.project_id, assigned_to);
+    }
 
     const fields = Object.keys(updateData);
     const values = Object.values(updateData);
 
     if (fields.length === 0) {
-      return res.status(400).json({ success: false, message: 'No fields to update' });
+      return res.status(400).json({ success: false, message: 'No valid fields to update' });
     }
 
+    // 6. Execute Update
     const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
     values.push(taskId);
 
@@ -283,7 +288,6 @@ const updateTask = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Task updated successfully',
       data: { task: result.rows[0] },
     });
   } catch (error) {

@@ -10,7 +10,8 @@ const { checkProjectMember, checkProjectOwner } = require('../middleware/project
 const {
   checkTaskProjectMember,
   checkTaskProjectOwner,
-  checkMessageProjectMember, // ✅ กันลบ message
+  checkMessageProjectMember,
+  checkTaskAccess,
 } = require('../middleware/taskAuth');
 
 // All routes require authentication
@@ -26,7 +27,8 @@ router.use(authenticate);
 router.get('/projects/:projectId/tasks', checkProjectMember, taskController.getTasks);
 
 // ✅ Create task: owner เท่านั้น
-router.post('/projects/:projectId/tasks', checkProjectOwner, taskController.createTask);
+// router.post('/projects/:projectId/tasks', checkProjectOwner, taskController.createTask);
+router.post('/projects/:projectId/tasks', checkProjectMember, taskController.createTask);
 
 /**
  * =========================
@@ -38,10 +40,11 @@ router.post('/projects/:projectId/tasks', checkProjectOwner, taskController.crea
 router.get('/tasks/:taskId', checkTaskProjectMember, taskController.getTask);
 
 // ✅ Update task: owner เท่านั้น
-router.put('/tasks/:taskId', checkTaskProjectOwner, taskController.updateTask);
+// router.put('/tasks/:taskId', checkTaskProjectOwner, taskController.updateTask);
+router.put('/tasks/:taskId', checkTaskAccess, taskController.updateTask);
 
 // ✅ Delete task: owner เท่านั้น
-router.delete('/tasks/:taskId', checkTaskProjectOwner, taskController.deleteTask);
+router.delete('/tasks/:taskId', checkTaskAccess, taskController.deleteTask);
 
 /**
  * =========================
