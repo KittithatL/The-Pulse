@@ -1,11 +1,11 @@
 const db = require('../config/database');
 
 // --- HELPERS ---
-// ✅ เช็คความเป็น UUID (ไม่ใช้ parseInt เพราะไม่ใช่ตัวเลข)
 const isValidUUID = (v) => v !== undefined && v !== null && String(v).trim() !== '';
 
+// เช็คว่าคนที่จะ Assign ให้ เป็นสมาชิกในโปรเจกต์จริงไหม
 const ensureAssigneeIsProjectMember = async (projectId, assignedTo) => {
-  if (!isValidUUID(assignedTo)) return null;
+  if (!isValidUUID(assignedTo)) return null; // ถ้าส่งมาเป็นค่าว่าง หรือ null ให้เคลียร์ Assignee
   const uid = String(assignedTo); 
 
   const check = await db.query(
@@ -29,20 +29,14 @@ const getTasks = async (req, res) => {
 
     let query = `
       SELECT 
-        t.id AS task_id,
-        t.name,             -- 👈 เปลี่ยนจาก title เป็น name แล้ว
-        t.description,
-        t.status,
-        t.start_at,
-        t.deadline,
-        t.dor,
-        t.dod,
-        t.created_at,
-        t.updated_at,
-        t.created_by AS created_by_id,
+        t.id, t.name, t.description, t.status, 
+        t.start_at, t.deadline, t.dor, t.dod,
+        t.created_at, t.updated_at,
+        t.created_by,
         creator.name AS created_by_username,
         t.assigned_to,
-        assignee.name AS assigned_username
+        assignee.name AS assignee_username, -- 👈 แก้ชื่อ alias ให้สื่อความหมาย
+        assignee.name AS assigned_username  -- 👈 เผื่อ Frontend ตัวเก่าใช้
       FROM tasks t
       LEFT JOIN users creator ON t.created_by = creator.id
       LEFT JOIN users assignee ON t.assigned_to = assignee.id
@@ -50,12 +44,10 @@ const getTasks = async (req, res) => {
     `;
 
     const params = [projectId];
-    let paramCount = 1;
-
+    
     if (status) {
-      paramCount++;
-      query += ` AND t.status = $${paramCount}`;
       params.push(status);
+      query += ` AND t.status = $2`;
     }
 
     query += ' ORDER BY t.created_at DESC';
@@ -72,19 +64,15 @@ const getTasks = async (req, res) => {
   }
 };
 
-// ✅ 2. ดึงงานส่วนตัว (หน้า My Tasks) - แก้จุด t.title -> t.name เรียบร้อย
+// ✅ 2. ดึงงานส่วนตัว (My Tasks)
 const getMyTasks = async (req, res) => {
   try {
     const userId = req.user.id; 
 
     const result = await db.query(
       `SELECT 
-        t.id AS task_id,
-        t.name,             -- 👈 ตรวจสอบแล้ว: ใช้ name ตามตาราง tasks
-        t.description,
-        t.status,
-        t.deadline,
-        t.project_id,
+        t.id, t.name, t.description, t.status, t.deadline, t.priority,
+        t.project_id, t.updated_at,
         p.name AS project_name
       FROM tasks t
       JOIN projects p ON t.project_id = p.id
@@ -98,7 +86,7 @@ const getMyTasks = async (req, res) => {
       data: { tasks: result.rows },
     });
   } catch (error) {
-    console.error('❌ SQL ERROR ใน getMyTasks:', error.message);
+    console.error('Get my tasks error:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch your tasks' });
   }
 };
@@ -109,21 +97,8 @@ const getTask = async (req, res) => {
     const { taskId } = req.params;
 
     const result = await db.query(
-      `SELECT 
-        t.id AS task_id,
-        t.project_id,
-        t.name,
-        t.description,
-        t.status,
-        t.start_at,
-        t.deadline,
-        t.dor,
-        t.dod,
-        t.created_by AS created_by_id,
-        t.created_at,
-        t.updated_at,
+      `SELECT t.*, 
         creator.name AS created_by_username,
-        t.assigned_to,
         assignee.name AS assigned_username
       FROM tasks t
       LEFT JOIN users creator ON t.created_by = creator.id
@@ -151,13 +126,13 @@ const createTask = async (req, res) => {
   try {
     const { projectId } = req.params;
     const userId = req.user?.id;
-
-    const { name, description, status, start_at, deadline, dor, dod, assigned_to } = req.body;
+    const { name, description, status, priority, start_at, deadline, dor, dod, assigned_to } = req.body;
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ success: false, message: 'Task name is required' });
     }
 
+    // เช็คสิทธิ์ในโปรเจกต์
     const memberCheck = await db.query(
       'SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2',
       [projectId, userId]
@@ -168,8 +143,9 @@ const createTask = async (req, res) => {
     }
 
     const role = memberCheck.rows[0].role;
-    let assignedToFinal = userId;
+    let assignedToFinal = userId; // Default: assign ให้ตัวเอง
 
+    // ถ้าเป็น Owner ถึงจะ assign ให้คนอื่นได้
     if (role === 'owner' && assigned_to) {
       assignedToFinal = await ensureAssigneeIsProjectMember(projectId, assigned_to);
     }
@@ -177,11 +153,23 @@ const createTask = async (req, res) => {
     const result = await db.query(
       `INSERT INTO tasks (
         project_id, name, description, created_by, 
-        status, assigned_to, dor, dod, start_at, deadline
+        status, priority, assigned_to, dor, dod, start_at, deadline
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
       RETURNING *`,
-      [projectId, String(name).trim(), description || null, userId, status || 'todo', assignedToFinal, dor || null, dod || null, start_at || null, deadline || null]
+      [
+        projectId, 
+        String(name).trim(), 
+        description || null, 
+        userId, 
+        status || 'todo', 
+        priority || 'medium', // เพิ่ม Priority
+        assignedToFinal, 
+        dor || null, 
+        dod || null, 
+        start_at || null, 
+        deadline || null
+      ]
     );
 
     return res.status(201).json({ success: true, data: { task: result.rows[0] } });
@@ -196,43 +184,52 @@ const updateTask = async (req, res) => {
   try {
     const { taskId } = req.params;
     const userId = req.user?.id;
+    const { name, description, status, priority, start_at, deadline, dor, dod, assigned_to } = req.body;
 
+    // 1. ดึงข้อมูลงานเดิม
     const taskCheck = await db.query('SELECT project_id, assigned_to FROM tasks WHERE id = $1', [taskId]);
     if (taskCheck.rows.length === 0) return res.status(404).json({ success: false, message: 'Task not found' });
-
     const task = taskCheck.rows[0];
-    const memberCheck = await db.query('SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2', [task.project_id, userId]);
 
+    // 2. เช็ค Role ของคนกดแก้ไข
+    const memberCheck = await db.query('SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2', [task.project_id, userId]);
     if (memberCheck.rows.length === 0) return res.status(403).json({ success: false, message: 'Forbidden' });
 
     const role = memberCheck.rows[0].role;
     const isOwner = role === 'owner';
     const isAssignee = String(task.assigned_to) === String(userId);
 
-    if (!isOwner && !isAssignee) return res.status(403).json({ success: false, message: 'No permission' });
+    if (!isOwner && !isAssignee) return res.status(403).json({ success: false, message: 'You can only edit your own tasks' });
 
-    const { name, description, status, start_at, deadline, dor, dod, assigned_to } = req.body;
+    // 3. เตรียมข้อมูลอัปเดต
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
     if (status !== undefined) updateData.status = status;
     if (start_at !== undefined) updateData.start_at = start_at;
-    if (deadline !== undefined) updateData.deadline = deadline;
     if (dor !== undefined) updateData.dor = dor;
     
+    // 🚩 Logic สิทธิ์: Owner แก้ได้ทุกอย่าง / Assignee แก้ได้แค่บางอย่าง
     if (isOwner) {
+      if (deadline !== undefined) updateData.deadline = deadline;
+      if (priority !== undefined) updateData.priority = priority;
       if (dod !== undefined) updateData.dod = dod;
       if (assigned_to !== undefined) {
         updateData.assigned_to = await ensureAssigneeIsProjectMember(task.project_id, assigned_to);
       }
+    } else {
+       // ถ้าไม่ใช่ Owner อย่าให้แก้ Deadline หรือเปลี่ยนคนรับผิดชอบ
+       // (Optional: ถ้าอยากให้ Assignee แก้ Deadline ได้ ก็ย้ายขึ้นไปข้างบน)
     }
 
+    // 4. สร้าง Query แบบ Dynamic
     const fields = Object.keys(updateData);
-    const values = Object.values(updateData);
-    if (fields.length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
+    if (fields.length === 0) return res.status(200).json({ success: true, message: 'Nothing to update' });
 
+    const values = Object.values(updateData);
     const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
-    values.push(taskId);
+    
+    values.push(taskId); // ตัวแปรสุดท้ายคือ ID
 
     const result = await db.query(
       `UPDATE tasks SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length} RETURNING *`,
@@ -241,16 +238,39 @@ const updateTask = async (req, res) => {
 
     return res.status(200).json({ success: true, data: { task: result.rows[0] } });
   } catch (error) {
-    console.error('Update error:', error);
-    return res.status(500).json({ success: false, message: 'Update failed' });
+    console.error('Update task error:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Update failed' });
   }
 };
 
-// ✅ 6. อัปเดตสถานะ (Drag & Drop)
+// ✅ 6. อัปเดตสถานะ (Drag & Drop) - เพิ่ม Security Check
 const updateTaskStatus = async (req, res) => {
   try {
     const { taskId } = req.params;
     const { status } = req.body;
+    const userId = req.user?.id;
+
+    // 🚩 ต้องเช็คสิทธิ์ก่อนอัปเดต!
+    const taskCheck = await db.query(
+      `SELECT t.project_id, t.assigned_to, pm.role 
+       FROM tasks t
+       JOIN project_members pm ON t.project_id = pm.project_id AND pm.user_id = $2
+       WHERE t.id = $1`,
+      [taskId, userId]
+    );
+
+    if (taskCheck.rows.length === 0) {
+      return res.status(403).json({ success: false, message: 'No permission to move this task' });
+    }
+
+    const task = taskCheck.rows[0];
+    const isOwner = task.role === 'owner';
+    const isAssignee = String(task.assigned_to) === String(userId);
+
+    // อนุญาตให้ Owner หรือเจ้าของงานย้ายได้
+    if (!isOwner && !isAssignee) {
+      return res.status(403).json({ success: false, message: 'Only assignee or owner can move tasks' });
+    }
 
     const result = await db.query(
       `UPDATE tasks SET status = $1, updated_at = CURRENT_TIMESTAMP 
@@ -260,6 +280,7 @@ const updateTaskStatus = async (req, res) => {
 
     return res.status(200).json({ success: true, data: result.rows[0] });
   } catch (error) {
+    console.error('Update status error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update status' });
   }
 };
@@ -289,6 +310,7 @@ const deleteTask = async (req, res) => {
     await db.query('DELETE FROM tasks WHERE id = $1', [taskId]);
     return res.status(200).json({ success: true, message: 'Deleted' });
   } catch (error) {
+    console.error('Delete task error:', error);
     return res.status(500).json({ success: false, message: 'Delete failed' });
   }
 };

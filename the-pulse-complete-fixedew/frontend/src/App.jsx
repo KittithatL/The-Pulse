@@ -8,45 +8,37 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ProjectTasks from './pages/ProjectTask';
 import MyTasks from './pages/Mytasks';
+// 🚩 เพิ่มการ Import Dashboard ของจริงตรงนี้!
+import Dashboard from './pages/Dashboard'; 
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-14 h-14 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Checking session...</p>
+          <div className="w-14 h-14 border-4 border-red-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-bold uppercase tracking-widest text-xs">Checking session...</p>
         </div>
       </div>
     );
   }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return children;
 };
 
 const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-
   if (loading) return null;
   if (isAuthenticated) return <Navigate to="/projects" replace />;
-
   return children;
 };
 
 function AppRoutes() {
   const [searchQuery, setSearchQuery] = useState('');
-
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-  };
+  const handleSearch = (query) => setSearchQuery(query);
 
   return (
     <BrowserRouter 
@@ -55,43 +47,37 @@ function AppRoutes() {
         v7_relativeSplatPath: true 
       }}
     >
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3000,
-          style: {
-            background: '#1E293B',
-            color: '#fff',
-          },
-          success: {
-            iconTheme: {
-              primary: '#EF4444',
-              secondary: '#fff',
-            },
-          },
-        }}
-      />
+      <Toaster position="top-right" />
 
       <Routes>
         {/* Public */}
+        <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+        <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+
+        {/* ✅ Dashboard Routes (แก้จาก Coming soon เป็น Component จริง) */}
         <Route
-          path="/login"
+          path="/dashboard"
           element={
-            <PublicOnlyRoute>
-              <Login />
-            </PublicOnlyRoute>
+            <ProtectedRoute>
+              <Layout onSearch={handleSearch}>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
           }
         />
+        {/* เพิ่ม Route สำหรับเข้า Dashboard รายโปรเจกต์ (UUID Support) */}
         <Route
-          path="/register"
+          path="/dashboard/:projectId"
           element={
-            <PublicOnlyRoute>
-              <Register />
-            </PublicOnlyRoute>
+            <ProtectedRoute>
+              <Layout onSearch={handleSearch}>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
           }
         />
 
-        {/* Protected */}
+        {/* Projects & Tasks */}
         <Route
           path="/projects"
           element={
@@ -103,27 +89,12 @@ function AppRoutes() {
           }
         />
 
-        {/* ✅ Project Tasks (เข้าโปรเจคแล้วเห็น Tasks ของโปรเจคนั้น) */}
         <Route
           path="/projects/:projectId/tasks"
           element={
             <ProtectedRoute>
               <Layout onSearch={handleSearch}>
                 <ProjectTasks />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Dashboard</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
               </Layout>
             </ProtectedRoute>
           }
@@ -140,173 +111,9 @@ function AppRoutes() {
           }
         />
 
-          <Route
-            path="/my-days"
-            element={
-              <ProtectedRoute>
-                <Layout onSearch={handleSearch}>
-                  <div className="text-center py-20">
-                    <h1 className="text-4xl font-bold text-gray-800">My Day</h1>
-                    <p className="text-gray-600 mt-4">Coming soon...</p>
-                  </div>
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-
-        <Route
-          path="/project-flow"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Project Flow</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/retro-board"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Retro Board</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/financial-hub"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Financial Hub</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/payroll"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Payroll</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/project-chat"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Project Chat</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/decision-hub"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Decision Hub</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/risk-sentinel"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Risk Sentinel</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/skill-matrix"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Skill Matrix</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/culture-feedback"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Culture Feedback</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/architecture"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Architecture</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Admin</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        {/* ⚠️ ตัวที่เหลือมึงยังไม่ได้ทำ UI ก็ให้มันเป็น Coming soon ไปก่อนได้ครับ */}
+        <Route path="/risk-sentinel" element={<ProtectedRoute><Layout onSearch={handleSearch}><ComingSoon title="Risk Sentinel" /></Layout></ProtectedRoute>} />
+        <Route path="/project-flow" element={<ProtectedRoute><Layout onSearch={handleSearch}><ComingSoon title="Project Flow" /></Layout></ProtectedRoute>} />
 
         {/* Default */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -315,6 +122,14 @@ function AppRoutes() {
     </BrowserRouter>
   );
 }
+
+// Component เสริมสำหรับหน้าที่ยังไม่ได้ทำ
+const ComingSoon = ({ title }) => (
+  <div className="text-center py-40 bg-white rounded-[3rem] shadow-xl border border-slate-100 m-6">
+    <h1 className="text-6xl font-black italic text-slate-900 uppercase tracking-tighter">{title}</h1>
+    <p className="text-red-600 font-black mt-4 uppercase tracking-[0.3em] text-xs">Tactical Module: Coming Soon</p>
+  </div>
+);
 
 function App() {
   return (

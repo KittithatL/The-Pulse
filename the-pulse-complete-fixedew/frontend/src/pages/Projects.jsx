@@ -21,34 +21,35 @@ const Projects = ({ searchQuery = '' }) => {
 
   const navigate = useNavigate();
 
-  // ✅ 1. State สำหรับฟอร์มสร้าง (ครบ 3 ช่อง: name, description, end_at)
+  // ✅ ปรับ State ให้ตรงกับ Database (name, deadline)
   const [createForm, setCreateForm] = useState({
     name: '',
     description: '',
-    end_at: '',
+    deadline: '',
   });
 
-  // ✅ 2. State สำหรับฟอร์มแก้ไข (ครบ 3 ช่อง: name, description, end_at)
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
-    end_at: '',
+    deadline: '',
   });
 
   const [memberForm, setMemberForm] = useState({
-    emailOrName: '',
+    emailOrName: '', // ✅ Backend เรารับค่าเป็น emailOrName
     role: 'member',
   });
 
   useEffect(() => {
     fetchProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchProjects = async () => {
     setLoading(true);
     try {
       const response = await projectAPI.getProjects();
-      setProjects(response?.data?.data?.projects ?? []);
+      // ✅ Backend เราส่ง Array มาใน data.data โดยตรง ไม่ต้อง .projects ต่อ
+      setProjects(response?.data?.data || []);
     } catch (error) {
       console.error('Failed to fetch projects:', error);
       toast.error('Failed to fetch projects');
@@ -60,7 +61,8 @@ const Projects = ({ searchQuery = '' }) => {
   const fetchMembers = async (projectId) => {
     try {
       const response = await projectAPI.getMembers(projectId);
-      setMembers(response?.data?.data?.members ?? []);
+      // ✅ Backend ส่ง Array มาตรงๆ เช่นกัน
+      setMembers(response?.data?.data || []);
     } catch (error) {
       console.error('Fetch members error:', error);
       toast.error('Failed to fetch members');
@@ -70,10 +72,11 @@ const Projects = ({ searchQuery = '' }) => {
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     try {
+      // ✅ ส่งฟอร์มที่แก้ key แล้ว (name, deadline)
       await projectAPI.createProject(createForm);
       toast.success('Project created successfully');
       setShowCreateModal(false);
-      setCreateForm({ name: '', description: '', end_at: '' });
+      setCreateForm({ name: '', description: '', deadline: '' });
       fetchProjects();
     } catch (error) {
       console.error('Create project error:', error);
@@ -84,8 +87,10 @@ const Projects = ({ searchQuery = '' }) => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!selectedProject) return;
+
     try {
-      await projectAPI.updateProject(selectedProject.project_id, editForm);
+      // ✅ ใช้ .id แทน .project_id
+      await projectAPI.updateProject(selectedProject.id, editForm);
       toast.success('Project updated successfully');
       setShowEditModal(false);
       setSelectedProject(null);
@@ -96,9 +101,12 @@ const Projects = ({ searchQuery = '' }) => {
     }
   };
 
-  const handleDeleteProject = async (projectId, projectName) => {
-    const ok = window.confirm(`Are you sure you want to delete "${projectName}"?`);
+  const handleDeleteProject = async (projectId, projectTitle) => {
+    const ok = window.confirm(
+      `Are you sure you want to delete "${projectTitle}"?\nThis action cannot be undone!`
+    );
     if (!ok) return;
+
     setDeletingProject(projectId);
     try {
       await projectAPI.deleteProject(projectId);
@@ -106,7 +114,7 @@ const Projects = ({ searchQuery = '' }) => {
       fetchProjects();
     } catch (error) {
       console.error('Delete project error:', error);
-      toast.error('Failed to delete project');
+      toast.error(error?.response?.data?.message || 'Failed to delete project');
     } finally {
       setDeletingProject(null);
     }
@@ -115,35 +123,56 @@ const Projects = ({ searchQuery = '' }) => {
   const handleAddMember = async (e) => {
     e.preventDefault();
     if (!selectedProject) return;
+
+    const value = (memberForm.emailOrName || '').trim();
+    if (!value) {
+      toast.error('Please enter email or username');
+      return;
+    }
+
     try {
-      await projectAPI.addMember(selectedProject.project_id, { emailOrName: memberForm.emailOrName });
+      // ✅ key ต้องตรงกับ Backend (emailOrName)
+      await projectAPI.addMember(selectedProject.id, { emailOrName: value, role: memberForm.role });
+
       toast.success('Member added successfully');
       setMemberForm({ emailOrName: '', role: 'member' });
-      fetchMembers(selectedProject.project_id);
+      fetchMembers(selectedProject.id);
     } catch (error) {
-      toast.error(error?.response?.data?.message || 'Failed to add member');
+      console.error('Add member error:', error);
+      toast.error(error?.response?.data?.message || 'User not found or already added');
     }
   };
 
-  const handleRemoveMember = async (userId, userName) => {
+  const handleRemoveMember = async (userId, username) => {
     if (!selectedProject) return;
-    const ok = window.confirm(`Remove ${userName}?`);
+
+    // TODO: ต้องทำ API removeMember เพิ่มใน Backend ถ้ายังไม่มี (แต่ใส่ UI ไว้ก่อนได้)
+    // ตอนนี้ปิดไว้หรือแจ้งเตือนก่อน
+    alert("Feature 'Remove Member' coming soon (Backend implementation needed)");
+    
+    /* const ok = window.confirm(`Are you sure you want to remove ${username} from this project?`);
     if (!ok) return;
+
+    setDeletingMember(userId);
     try {
-      await projectAPI.removeMember(selectedProject.project_id, userId);
-      toast.success('Member removed');
-      fetchMembers(selectedProject.project_id);
+      await projectAPI.removeMember(selectedProject.id, userId);
+      toast.success('Member removed successfully');
+      fetchMembers(selectedProject.id);
     } catch (error) {
+      console.error('Remove member error:', error);
       toast.error('Failed to remove member');
+    } finally {
+      setDeletingMember(null);
     }
+    */
   };
 
   const openEditModal = (project) => {
     setSelectedProject(project);
     setEditForm({
-      name: project.name || '',
+      name: project.name || '', // ✅ ใช้ name
       description: project.description || '',
-      end_at: project.end_at ? format(new Date(project.end_at), 'yyyy-MM-dd') : '',
+      deadline: project.deadline ? format(new Date(project.deadline), 'yyyy-MM-dd') : '', // ✅ ใช้ deadline
     });
     setShowEditModal(true);
   };
@@ -151,104 +180,331 @@ const Projects = ({ searchQuery = '' }) => {
   const openMembersModal = async (project) => {
     setSelectedProject(project);
     setShowMembersModal(true);
-    await fetchMembers(project.project_id);
+    await fetchMembers(project.id); // ✅ ใช้ id
   };
 
   const filteredProjects = useMemo(() => {
     const q = (searchQuery || '').trim().toLowerCase();
     if (!q) return projects;
-    return projects.filter((p) => (p.name || '').toLowerCase().includes(q));
+
+    return projects.filter((project) => {
+      // ✅ ใช้ name แทน title
+      const title = (project.name || '').toLowerCase();
+      const desc = (project.description || '').toLowerCase();
+      const creator = (project.creator_name || '').toLowerCase(); // ✅ ใช้ creator_name
+      return title.includes(q) || desc.includes(q) || creator.includes(q);
+    });
   }, [projects, searchQuery]);
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-bold uppercase">Loading projects...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 bg-slate-50 min-h-screen">
+    <div className="p-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-10">
-        <h1 className="text-4xl font-black italic tracking-tighter text-black">THE PULSE / PROJECTS</h1>
-        <button onClick={() => setShowCreateModal(true)} className="bg-red-600 text-white px-8 py-4 rounded-2xl font-black shadow-xl shadow-red-600/20 active:scale-95 transition-all">
-          + NEW PROJECT
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-4xl font-black text-gray-900 italic uppercase tracking-tighter">ALL PROJECTS</h1>
+          <p className="text-red-600 text-xs font-bold tracking-widest uppercase">Mission Control Center</p>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="bg-black hover:bg-gray-800 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all transform hover:scale-105 font-bold uppercase text-xs tracking-wider shadow-lg"
+        >
+          <Plus className="w-4 h-4" />
+          Create Project
         </button>
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filteredProjects.map((project) => (
-          <div key={project.project_id} className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group">
-            <div className="flex justify-between items-start mb-6">
-              <span className="text-[10px] font-black tracking-widest text-slate-300">#ID-{project.project_id}</span>
-              <div className="flex gap-2">
-                <button onClick={() => openEditModal(project)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors"><Edit className="w-5 h-5 text-slate-400" /></button>
-                <button onClick={() => openMembersModal(project)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors"><Users className="w-5 h-5 text-slate-400" /></button>
-                <button onClick={() => handleDeleteProject(project.project_id, project.name)} className="p-2 hover:bg-red-50 rounded-xl transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5 text-red-500" /></button>
+      {/* Projects Count */}
+      {searchQuery && (
+        <div className="mb-6 text-sm font-bold text-gray-500 uppercase tracking-wide">
+          Found <span className="text-red-600">{filteredProjects.length}</span> project(s) matching "{searchQuery}"
+        </div>
+      )}
+
+      {/* Projects Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredProjects.length === 0 ? (
+          <div className="col-span-full text-center py-20 border-4 border-dashed border-gray-200 rounded-3xl">
+            <p className="text-gray-400 text-xl font-black italic uppercase">
+              {searchQuery
+                ? `No projects found matching "${searchQuery}"`
+                : 'No projects yet. Initiate your first mission!'}
+            </p>
+          </div>
+        ) : (
+          filteredProjects.map((project) => (
+            <div
+              key={project.id} // ✅ ใช้ project.id
+              className="bg-white rounded-[2rem] shadow-lg p-8 hover:shadow-2xl transition-all duration-300 border border-gray-100 group hover:-translate-y-1"
+            >
+              <div className="flex justify-between items-start mb-6">
+                <span className="bg-black text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">
+                  ID // {project.id}
+                </span>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => openEditModal(project)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    title="Edit project"
+                  >
+                    <Edit className="w-4 h-4 text-gray-600" />
+                  </button>
+
+                  <button
+                    onClick={() => openMembersModal(project)}
+                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    title="Manage members"
+                  >
+                    <Users className="w-4 h-4 text-gray-600" />
+                  </button>
+
+                  <button
+                    onClick={() => handleDeleteProject(project.id, project.name)}
+                    disabled={deletingProject === project.id}
+                    className="p-2 hover:bg-red-50 rounded-full transition-colors disabled:opacity-50"
+                    title="Delete project"
+                  >
+                    {deletingProject === project.id ? (
+                      <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <h3 className="text-2xl font-black text-gray-900 mb-3 italic uppercase leading-none truncate">
+                {project.name} {/* ✅ ใช้ project.name */}
+              </h3>
+              <p className="text-xs text-gray-500 mb-6 font-medium line-clamp-2 h-8">
+                {project.description || 'NO BRIEFING PROVIDED.'}
+              </p>
+
+              <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 mb-2 uppercase tracking-wide">
+                <Users className="w-3 h-3" />
+                <span>LEADER: {project.creator_name || 'UNKNOWN'}</span> {/* ✅ ใช้ creator_name */}
+              </div>
+
+              <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 mb-6 uppercase tracking-wide">
+                <Calendar className="w-3 h-3 text-red-600" />
+                <span>
+                  DEADLINE: {project.deadline ? format(new Date(project.deadline), 'dd MMM yyyy') : 'NO DATE'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pt-6 border-t-2 border-gray-100 border-dashed">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-black rounded-full flex items-center justify-center text-white text-[10px] font-black border-2 border-white shadow-md">
+                    {(project.creator_name?.[0] || 'U').toUpperCase()}
+                  </div>
+                  <span className="text-[10px] font-black text-gray-500 uppercase">
+                    {project.member_count} AGENTS
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => navigate(`/projects/${project.id}/tasks`)} // ✅ ลิงก์ไปหน้า Tasks
+                  className="text-red-600 hover:text-red-700 font-black text-[10px] flex items-center gap-1 uppercase tracking-widest hover:translate-x-1 transition-transform"
+                >
+                  ACCESS DATA <span className="text-lg leading-none">→</span>
+                </button>
               </div>
             </div>
-            <h3 className="text-2xl font-black italic mb-2 uppercase">{project.name}</h3>
-            <p className="text-sm text-slate-400 font-bold italic mb-8 line-clamp-2">"{project.description || 'No description'}"</p>
-            <div className="flex justify-between items-center pt-6 border-t border-slate-50">
-               <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white font-black text-xs">{project.creator_name?.[0]?.toUpperCase()}</div>
-                  <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase">{project.member_count} MEMBERS</span>
-               </div>
-               <button onClick={() => navigate(`/projects/${project.project_id}/tasks`)} className="text-red-600 font-black text-xs tracking-widest hover:translate-x-2 transition-transform">ENTER →</button>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
-      {/* ✅ CREATE PROJECT MODAL (ครบทุกช่อง) */}
+      {/* --- Create Project Modal --- */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-[40px] p-10 max-w-md w-full shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border-4 border-white">
             <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-black italic tracking-tighter">CREATE PROJECT</h2>
-              <button onClick={() => setShowCreateModal(false)}><X className="w-8 h-8 text-slate-300 hover:text-black" /></button>
+              <h2 className="text-3xl font-black italic uppercase tracking-tighter">NEW MISSION</h2>
+              <button onClick={() => setShowCreateModal(false)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200 transition-colors">
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
             </div>
-            <form onSubmit={handleCreateSubmit} className="space-y-6">
+
+            <form onSubmit={handleCreateSubmit} className="space-y-5">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 tracking-[0.2em] mb-2">PROJECT NAME</label>
-                <input type="text" required value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 font-bold focus:ring-2 focus:ring-red-600 outline-none" placeholder="Project Name" />
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">CODENAME (NAME)</label>
+                <input
+                  type="text"
+                  value={createForm.name} // ✅ ใช้ name
+                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-black font-bold text-sm transition-colors"
+                  placeholder="Ex. PROJECT OMEGA"
+                  required
+                />
               </div>
+
               <div>
-                <label className="block text-[10px] font-black text-slate-400 tracking-[0.2em] mb-2">DESCRIPTION</label>
-                <textarea value={createForm.description} onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })} className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 font-bold focus:ring-2 focus:ring-red-600 outline-none" rows="3" placeholder="Description" />
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">BRIEFING (DESC)</label>
+                <textarea
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-black font-medium text-sm transition-colors"
+                  rows="3"
+                  placeholder="Mission details..."
+                />
               </div>
+
               <div>
-                <label className="block text-[10px] font-black text-slate-400 tracking-[0.2em] mb-2">END DATE</label>
-                <input type="date" value={createForm.end_at} onChange={(e) => setCreateForm({ ...createForm, end_at: e.target.value })} className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 font-bold focus:ring-2 focus:ring-red-600 outline-none" />
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">DEADLINE</label>
+                <input
+                  type="date"
+                  value={createForm.deadline} // ✅ ใช้ deadline
+                  onChange={(e) => setCreateForm({ ...createForm, deadline: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-black font-bold text-sm"
+                />
               </div>
-              <button type="submit" className="w-full bg-red-600 text-white font-black py-5 rounded-3xl shadow-xl shadow-red-600/30 hover:brightness-110 transition-all">INITIALIZE PROJECT</button>
+
+              <button
+                type="submit"
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg shadow-red-600/30 transition-all hover:scale-[1.02]"
+              >
+                <Plus className="w-5 h-5" />
+                INITIATE PROJECT
+              </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* ✅ EDIT PROJECT MODAL (ครบทุกช่อง) */}
+      {/* --- Edit Project Modal --- */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-[40px] p-10 max-w-md w-full shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl">
             <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-black italic tracking-tighter">MODIFY SETTINGS</h2>
-              <button onClick={() => setShowEditModal(false)}><X className="w-8 h-8 text-slate-300 hover:text-black" /></button>
+              <h2 className="text-3xl font-black italic uppercase tracking-tighter">EDIT MISSION</h2>
+              <button onClick={() => setShowEditModal(false)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200">
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
             </div>
-            <form onSubmit={handleEditSubmit} className="space-y-6">
+
+            <form onSubmit={handleEditSubmit} className="space-y-5">
               <div>
-                <label className="block text-[10px] font-black text-slate-400 tracking-[0.2em] mb-2">PROJECT NAME</label>
-                <input type="text" required value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 font-bold focus:ring-2 focus:ring-red-600 outline-none" />
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">CODENAME</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-black font-bold text-sm"
+                  required
+                />
               </div>
+
               <div>
-                <label className="block text-[10px] font-black text-slate-400 tracking-[0.2em] mb-2">DESCRIPTION</label>
-                <textarea value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 font-bold focus:ring-2 focus:ring-red-600 outline-none" rows="3" />
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">BRIEFING</label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-black font-medium text-sm"
+                  rows="3"
+                />
               </div>
+
               <div>
-                <label className="block text-[10px] font-black text-slate-400 tracking-[0.2em] mb-2">END DATE</label>
-                <input type="date" value={editForm.end_at} onChange={(e) => setEditForm({ ...editForm, end_at: e.target.value })} className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 font-bold focus:ring-2 focus:ring-red-600 outline-none" />
+                <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">DEADLINE</label>
+                <input
+                  type="date"
+                  value={editForm.deadline}
+                  onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-black font-bold text-sm"
+                />
               </div>
-              <button type="submit" className="w-full bg-black text-white font-black py-5 rounded-3xl shadow-xl hover:brightness-125 transition-all">UPDATE PROJECT</button>
+
+              <button
+                type="submit"
+                className="w-full bg-black hover:bg-gray-800 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 uppercase tracking-widest transition-all"
+              >
+                <Edit className="w-4 h-4" />
+                UPDATE DATA
+              </button>
             </form>
           </div>
         </div>
       )}
-      {/* ... (Modal Members อยู่ครบในโค้ดเต็มนี้) ... */}
+
+      {/* --- Members Modal --- */}
+      {showMembersModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-8">
+              <h2 className="text-3xl font-black italic uppercase tracking-tighter">SQUAD LIST</h2>
+              <button onClick={() => setShowMembersModal(false)} className="bg-gray-100 p-2 rounded-full hover:bg-gray-200">
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            {/* Add Member Form */}
+            <form onSubmit={handleAddMember} className="mb-8">
+              <label className="block text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">ADD OPERATIVE (EMAIL/NAME)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={memberForm.emailOrName} // ✅ ใช้ emailOrName
+                  onChange={(e) => setMemberForm({ ...memberForm, emailOrName: e.target.value })}
+                  className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:outline-none focus:border-black font-bold text-sm"
+                  placeholder="agent@thepulse.ai"
+                />
+                <button
+                  type="submit"
+                  className="bg-black hover:bg-gray-800 text-white px-6 rounded-xl font-black text-xs uppercase tracking-wider"
+                >
+                  ADD
+                </button>
+              </div>
+            </form>
+
+            {/* Members List */}
+            <div className="space-y-3">
+              {members.length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-2xl">
+                  <p className="text-gray-400 font-bold uppercase text-xs">NO OPERATIVES ASSIGNED</p>
+                </div>
+              ) : (
+                members.map((member) => (
+                  <div
+                    key={member.id} // ✅ ใช้ member.id
+                    className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100"
+                  >
+                    <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center text-white font-black border-2 border-white shadow-sm flex-shrink-0">
+                      {(member.name?.[0] || '?').toUpperCase()} {/* ✅ ใช้ member.name */}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-sm text-gray-900 truncate uppercase">
+                        {member.name}
+                      </p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{member.role}</p>
+                    </div>
+
+                    {member.role !== 'owner' && (
+                      <button
+                        onClick={() => handleRemoveMember(member.id, member.name)}
+                        className="p-2 bg-white rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-600 transition-colors"
+                        title="Remove member"
+                      >
+                         <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
