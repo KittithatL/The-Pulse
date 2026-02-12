@@ -1,0 +1,467 @@
+{
+  "info": {
+    "name": "The Pulse API",
+    "description": "Complete API collection for The Pulse project management platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"johndoe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"full_name\": \"John Doe\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('token', jsonData.data.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/projects",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects"]
+            }
+          }
+        },
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Phoenix Project\",\n  \"description\": \"Modernizing core microservices infrastructure\",\n  \"due_date\": \"2024-12-31\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/projects",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects"]
+            }
+          }
+        },
+        {
+          "name": "Get Project Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/projects/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects", "1"]
+            }
+          }
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Phoenix Project (Updated)\",\n  \"learning_capacity\": 25\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/projects/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get Dashboard Overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/overview",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "overview"]
+            }
+          }
+        },
+        {
+          "name": "Submit Team Mood",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sentiment_score\": 4,\n  \"comment\": \"Great progress this week!\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/mood",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "mood"]
+            }
+          }
+        },
+        {
+          "name": "Get Mood History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/mood/history?days=30",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "mood", "history"],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Infrastructure Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/infrastructure",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "infrastructure"]
+            }
+          }
+        },
+        {
+          "name": "Update Infrastructure Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"component_name\": \"API Gateway\",\n  \"status\": \"operational\",\n  \"response_time_ms\": 45\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/infrastructure",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "infrastructure"]
+            }
+          }
+        },
+        {
+          "name": "Get Risk Alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/risks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "risks"]
+            }
+          }
+        },
+        {
+          "name": "Create Risk Alert",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"risk_type\": \"velocity\",\n  \"severity\": \"high\",\n  \"title\": \"Sprint velocity decreased\",\n  \"description\": \"Current velocity is 20% below target. Need to identify blockers.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/risks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "risks"]
+            }
+          }
+        },
+        {
+          "name": "Resolve Risk Alert",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution_notes\": \"Team meeting held. Action items assigned. Monitoring improvements.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/risks/1/resolve",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "risks", "1", "resolve"]
+            }
+          }
+        },
+        {
+          "name": "Get Current Cycle",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/dashboard/1/cycle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "dashboard", "1", "cycle"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "List Project Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/projects/1/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects", "1", "tasks"]
+            }
+          }
+        },
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Implement user authentication\",\n  \"description\": \"Set up JWT authentication system\",\n  \"priority\": \"high\",\n  \"status\": \"in_progress\",\n  \"due_date\": \"2024-12-20\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/projects/1/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "projects", "1", "tasks"]
+            }
+          }
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"completed\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/tasks/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "tasks", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    }
+  ]
+}
