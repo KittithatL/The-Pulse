@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Globe, Bell, X, LogOut } from 'lucide-react';
+import { Search, Globe, Bell, X, LogOut, Folder, ArrowRight } from 'lucide-react'; // เพิ่ม Icon
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -38,7 +38,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
     navigate('/login');
   };
 
-  // ✅ filter dropdown list
   const suggestions = useMemo(() => {
     const q = (searchQuery || '').trim().toLowerCase();
     if (!q) return [];
@@ -50,23 +49,29 @@ const Navbar = ({ onSearch, projects = [] }) => {
       return title.includes(q) || desc.includes(q) || creator.includes(q);
     });
 
-    return list.slice(0, 6); // จำกัดให้ไม่ยาวเกิน
+    return list.slice(0, 6);
   }, [projects, searchQuery]);
 
-  const goToProjectOrSearch = (project) => {
-    // ถ้าคุณมีหน้า project detail จริง ๆ ค่อยเปลี่ยนเป็น /projects/:id
-    // ตอนนี้ให้ไปหน้า /projects แล้วให้มัน filter ด้วย query เดิม
-    navigate('/projects');
 
-    // ส่ง query ไปให้ Projects filter ต่อ (ยังคง query)
-    onSearch?.(searchQuery);
+  const selectSuggestion = (project) => {
 
-    // ปิด dropdown
-    setOpenDropdown(false);
-    inputRef.current?.blur();
+    const pid = project.id || project.project_id;
+    
+    if (pid) {
+
+      navigate(`/projects/${pid}/tasks`);
+
+
+      setSearchQuery(''); 
+      setIsSearching(false); 
+      setOpenDropdown(false);
+      onSearch?.('');  
+      
+
+      inputRef.current?.blur(); 
+    }
   };
 
-  // ✅ close dropdown when click outside
   useEffect(() => {
     const onDown = (e) => {
       if (!wrapRef.current) return;
@@ -78,7 +83,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
     return () => document.removeEventListener('mousedown', onDown);
   }, []);
 
-  // ✅ esc close
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') {
       setOpenDropdown(false);
@@ -87,11 +91,12 @@ const Navbar = ({ onSearch, projects = [] }) => {
   };
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
       <div className="flex items-center justify-between">
-        {/* Search */}
-        <div className="flex-1 max-w-xl">
-          <div className="relative" ref={wrapRef}>
+        
+        {/* Search & Dropdown Container */}
+        <div className="flex-1 max-w-xl relative" ref={wrapRef}>
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               ref={inputRef}
@@ -101,7 +106,7 @@ const Navbar = ({ onSearch, projects = [] }) => {
               onChange={handleSearch}
               onFocus={() => setOpenDropdown((searchQuery || '').trim().length > 0)}
               onKeyDown={handleKeyDown}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
             />
             {isSearching && (
               <button
@@ -113,42 +118,87 @@ const Navbar = ({ onSearch, projects = [] }) => {
               </button>
             )}
           </div>
+
+          {/* ✅ Dropdown Menu */}
+          {openDropdown && (
+            <div className="absolute top-full left-0 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="p-2 border-b border-gray-50 bg-gray-50/50">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2">
+                  Matching Projects
+                </span>
+              </div>
+              
+              <div className="max-h-[360px] overflow-y-auto">
+                {suggestions.length > 0 ? (
+                  suggestions.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => selectSuggestion(p)}
+                      className="w-full flex items-center justify-between p-3 hover:bg-primary/5 transition-colors group text-left border-b border-gray-50 last:border-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                          <Folder className="w-4 h-4 text-gray-500 group-hover:text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-800 group-hover:text-primary transition-colors">
+                            {p.title}
+                          </p>
+                          <p className="text-[10px] text-gray-400 uppercase font-medium">
+                             Created by {p.creator_username || 'System'}
+                          </p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-gray-300 -translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all" />
+                    </button>
+                  ))
+                ) : (
+                  <div className="p-8 text-center">
+                    <p className="text-sm text-gray-400 italic">No project matches your search.</p>
+                  </div>
+                )}
+              </div>
+
+              {suggestions.length > 0 && (
+                <button 
+                  onClick={() => { navigate('/projects'); onSearch?.(searchQuery); setOpenDropdown(false); }}
+                  className="w-full p-3 bg-gray-50 text-center text-xs font-bold text-primary hover:bg-gray-100 transition-colors border-t border-gray-100"
+                >
+                  VIEW ALL RESULTS
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Right Side */}
+        {/* Right Side - Same as before */}
         <div className="flex items-center gap-4">
-          {/* Language */}
           <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2">
             <Globe className="w-5 h-5 text-gray-600" />
-            <span className="text-sm text-gray-700">EN</span>
+            <span className="text-sm text-gray-700 font-bold">EN</span>
           </button>
 
-          {/* Notifications */}
           <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
             <Bell className="w-5 h-5 text-gray-600" />
             <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
           </button>
 
-          {/* Logout */}
           <button
             onClick={handleLogout}
             className="p-2 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2 text-red-600 font-semibold"
-            title="Logout"
-            type="button"
           >
             <LogOut className="w-5 h-5" />
             <span className="hidden md:block text-sm">Logout</span>
           </button>
 
-          {/* User Profile */}
           <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-            <div className="text-right">
-              <p className="text-sm font-semibold text-gray-800">
-                {username.toUpperCase()}
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-black text-gray-800 tracking-tighter uppercase">
+                {username}
               </p>
-              <p className="text-xs text-gray-500">SIGNED IN</p>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Signed In</p>
             </div>
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-red-600 rounded-full flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-red-600 rounded-full flex items-center justify-center text-white font-bold shadow-sm shadow-primary/20">
               {initial}
             </div>
           </div>
