@@ -1,24 +1,33 @@
 const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/authMiddleware');
+
+// Import Controllers
 const projectController = require('../controllers/projectController');
-const authenticate = require('../middleware/authenticate');
+const taskController = require('../controllers/taskController'); // 👈 เพิ่มบรรทัดนี้
+
+// Import Middleware
 const { checkProjectMember, checkProjectOwner } = require('../middleware/projectAuth');
 
-// All project routes require authentication
-router.use(authenticate);
+router.use(protect);
 
-// Project CRUD
+// --- Project CRUD ---
 router.get('/', projectController.getProjects);
 router.post('/', projectController.createProject);
-
-// ต้องเป็น member ถึงดู/แก้/ลบ
 router.get('/:projectId', checkProjectMember, projectController.getProject);
 router.put('/:projectId', checkProjectOwner, projectController.updateProject);
 router.delete('/:projectId', checkProjectOwner, projectController.deleteProject);
 
-// Project Members
+// --- Member Management ---
 router.get('/:projectId/members', checkProjectMember, projectController.getMembers);
 router.post('/:projectId/members', checkProjectOwner, projectController.addMember);
 router.delete('/:projectId/members/:userId', checkProjectOwner, projectController.removeMember);
+
+// =======================================================
+// ✅ ย้ายมาใส่ตรงนี้ (Project Scope Tasks)
+// URL จะเป็น: /api/projects/:projectId/tasks
+// =======================================================
+router.get('/:projectId/tasks', checkProjectMember, taskController.getTasks);
+router.post('/:projectId/tasks', checkProjectMember, taskController.createTask);
 
 module.exports = router;
