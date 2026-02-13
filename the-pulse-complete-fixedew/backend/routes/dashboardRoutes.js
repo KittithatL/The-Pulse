@@ -5,12 +5,11 @@ const { protect } = require('../middleware/authMiddleware');
 
 router.use(protect);
 
+// ✅ Routes ที่ถูกต้อง (ลบตัว heartbest ที่ทำให้ error ออกแล้ว)
 router.get('/:projectId/overview', dashboardController.getDashboardOverview);
 router.get('/:projectId/infrastructure', dashboardController.getInfrastructureHealth);
 router.get('/:projectId/risks', dashboardController.getRiskAlerts);
 router.post('/:projectId/mood', dashboardController.submitTeamMood);
-
-// 🚩 บรรทัดที่ 35 ที่มึง Error:
-router.patch('/alerts/:alertId/resolve', dashboardController.resolveRiskAlert); 
+router.patch('/alerts/:alertId/resolve', dashboardController.resolveRiskAlert);
 
 module.exports = router;

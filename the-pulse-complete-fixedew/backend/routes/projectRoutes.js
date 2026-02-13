@@ -23,5 +23,5 @@ router.post('/:projectId/members', projectController.addMember);
 // ต้องมี 2 บรรทัดนี้ เพื่อให้ดึงงาน (GET) และสร้างงาน (POST) ภายใต้โปรเจกต์ได้
 router.get('/:projectId/tasks', taskController.getTasks);  
 router.post('/:projectId/tasks', taskController.createTask); // 👈 บรรทัดนี้แหละที่ขาดไป!
-
+router.put('/tasks/:taskId/status', taskController.updateTaskStatus);
 module.exports = router;
