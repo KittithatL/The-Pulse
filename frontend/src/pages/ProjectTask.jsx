@@ -23,10 +23,17 @@ const STATUS_COLS = [
 ];
 
 const getTaskId = (t) => String(t?.task_id ?? t?.id);
-const prettyDate = (d) => (d ? String(d).slice(0, 10) : '');
+const prettyDate = (d) => {
+  if (!d) return '';
+  // ถ้ามาเป็น ISO String (มี T หรือ Z) ให้ตัดเอาแค่ 10 หลักแรก
+  return String(d).split('T')[0].split(' ')[0];
+};
 const toDateOnly = (dStr) => {
   if (!dStr) return null;
-  const d = new Date(String(dStr).slice(0, 10) + 'T00:00:00');
+  const cleanDate = String(dStr).split('T')[0]; // เอาแค่ YYYY-MM-DD
+  // การใส่แค่วันที่ลงใน new Date() บาง Browser จะมองเป็น UTC 
+  // แต่การใส่ YYYY-MM-DD แล้วตามด้วยเวลาท้องถิ่นจะช่วยให้แม่นยำขึ้น
+  const d = new Date(cleanDate + 'T00:00:00'); 
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
@@ -308,14 +315,13 @@ const canEditOrMove = (task) => {
       title: form.title?.trim(),
       description: form.description?.trim() || null,
       status: form.status || 'todo',
-      start_at: form.start_at || null,
-      deadline: form.deadline || null,
       dor: stringifyChecklist(form.dorItems),
       dod: stringifyChecklist(form.dodItems),
       assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
     };
+    if (form.start_at) payload.start_at = form.start_at.slice(0, 10);
+    if (form.deadline) payload.deadline = form.deadline.slice(0, 10);
 
-    // 🚩 ล้างทุกอย่างที่อาจเป็น ID ทิ้ง เพื่อป้องกัน Backend สับสน
     delete payload.id;
     delete payload.task_id;
 

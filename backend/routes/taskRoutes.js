@@ -4,59 +4,41 @@ const router = express.Router();
 const taskController = require('../controllers/taskController');
 const messageController = require('../controllers/messageController');
 
-const authenticate = require('../middleware/authenticate');
-
-const { checkProjectMember, checkProjectOwner } = require('../middleware/projectAuth');
-const {
-  checkTaskProjectMember,
-  checkTaskProjectOwner,
-  checkMessageProjectMember,
-  checkTaskAccess,
+const { protect } = require('../middleware/authMiddleware');
+const { 
+  checkTaskProjectMember, 
+  checkTaskProjectOwner, 
+  checkTaskAccess, // ใช้สำหรับ Edit/Delete
+  checkMessageAccess 
 } = require('../middleware/taskAuth');
 
-// All routes require authentication
-router.use(authenticate);
+router.use(protect);
+
+// ❌ ลบ Route /projects/... ออกจากที่นี่ให้หมดครับ
 
 /**
  * =========================
- * Tasks (project scoped)
+ * Tasks (Task Scoped)
+ * URL เริ่มต้นด้วย /api/tasks/...
  * =========================
  */
 
-// ✅ List tasks: member ดูได้
-router.get('/projects/:projectId/tasks', checkProjectMember, taskController.getTasks);
+// GET /api/tasks/:taskId
+router.get('/:taskId', checkTaskProjectMember, taskController.getTask);
 
-// ✅ Create task: owner เท่านั้น
-// router.post('/projects/:projectId/tasks', checkProjectOwner, taskController.createTask);
-router.post('/projects/:projectId/tasks', checkProjectMember, taskController.createTask);
+// PUT /api/tasks/:taskId
+router.put('/:taskId', checkTaskAccess, taskController.updateTask);
 
-/**
- * =========================
- * Tasks (task scoped)
- * =========================
- */
-
-// ✅ Get task detail: member ดูได้
-router.get('/tasks/:taskId', checkTaskProjectMember, taskController.getTask);
-
-// ✅ Update task: owner เท่านั้น
-// router.put('/tasks/:taskId', checkTaskProjectOwner, taskController.updateTask);
-router.put('/tasks/:taskId', checkTaskAccess, taskController.updateTask);
-
-// ✅ Delete task: owner เท่านั้น
-router.delete('/tasks/:taskId', checkTaskAccess, taskController.deleteTask);
+// DELETE /api/tasks/:taskId
+router.delete('/:taskId', checkTaskAccess, taskController.deleteTask);
 
 /**
  * =========================
  * Task Messages (Chat)
  * =========================
  */
-
-// ✅ member ของโปรเจคนี้ดู/ส่งได้
-router.get('/tasks/:taskId/messages', checkTaskProjectMember, messageController.getMessages);
-router.post('/tasks/:taskId/messages', checkTaskProjectMember, messageController.sendMessage);
-
-// ✅ ลบ message: อย่างน้อยต้องเป็น member ของโปรเจคที่ message นั้นสังกัด
-router.delete('/messages/:messageId', checkMessageProjectMember, messageController.deleteMessage);
+router.get('/:taskId/messages', checkTaskProjectMember, messageController.getMessages);
+router.post('/:taskId/messages', checkTaskProjectMember, messageController.sendMessage);
+router.delete('/messages/:messageId', checkMessageAccess, messageController.deleteMessage);
 
 module.exports = router;

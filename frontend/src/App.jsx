@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ProjectTasks from './pages/ProjectTask';
 import MyTasks from './pages/Mytasks';
+import Dashboard from './pages/Dashboard';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -103,7 +104,7 @@ function AppRoutes() {
           }
         />
 
-        {/* ✅ Project Tasks (เข้าโปรเจคแล้วเห็น Tasks ของโปรเจคนั้น) */}
+        {/* ✅ Project Tasks */}
         <Route
           path="/projects/:projectId/tasks"
           element={
@@ -115,15 +116,25 @@ function AppRoutes() {
           }
         />
 
+        {/* ✅ Dashboard (Entry Point: จะ Auto-redirect ไปหา Project แรก) */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
               <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Dashboard</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
+                <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ✅ Dashboard Specific Project (แสดงผลจริง) - ต้องเพิ่มอันนี้ครับ! */}
+        <Route
+          path="/dashboard/:projectId"
+          element={
+            <ProtectedRoute>
+              <Layout onSearch={handleSearch}>
+                <Dashboard />
               </Layout>
             </ProtectedRoute>
           }
@@ -140,19 +151,20 @@ function AppRoutes() {
           }
         />
 
-          <Route
-            path="/my-days"
-            element={
-              <ProtectedRoute>
-                <Layout onSearch={handleSearch}>
-                  <div className="text-center py-20">
-                    <h1 className="text-4xl font-bold text-gray-800">My Day</h1>
-                    <p className="text-gray-600 mt-4">Coming soon...</p>
-                  </div>
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+        {/* --- Placeholders --- */}
+        <Route
+          path="/my-days"
+          element={
+            <ProtectedRoute>
+              <Layout onSearch={handleSearch}>
+                <div className="text-center py-20">
+                  <h1 className="text-4xl font-bold text-gray-800">My Day</h1>
+                  <p className="text-gray-600 mt-4">Coming soon...</p>
+                </div>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/project-flow"
