@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock, Calendar, ExternalLink, Search, Filter } from 'lucide-react';
-import { taskAPI } from '../services/api'; // สมมติว่ามี API สำหรับดึง Task
+import { CheckCircle2, Clock, Calendar, ExternalLink, AlertTriangle, Target } from 'lucide-react';
+import { taskAPI } from '../services/api';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
+import { format, isBefore, isToday, startOfDay } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
 const MyTasks = ({ searchQuery = '' }) => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filterStatus, setFilterStatus] = useState('all'); // all, todo, doing, done
+  const [filterStatus, setFilterStatus] = useState('all');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -17,41 +17,38 @@ const MyTasks = ({ searchQuery = '' }) => {
 
   const fetchMyTasks = async () => {
     try {
-      setLoading(true); // เริ่มต้นโหลด
+      setLoading(true);
       const response = await taskAPI.getMyTasks();
-      
-      // ตรวจสอบว่ามีข้อมูลส่งกลับมาจริงไหมก่อนเซตค่า
-      if (response.data && response.data.data) {
+      if (response.data?.data?.tasks) {
         setTasks(response.data.data.tasks);
       }
     } catch (err) {
       console.error("Failed to fetch tasks:", err);
       toast.error("COMMUNICATION ERROR: Unable to reach base.");
     } finally {
-      // ✅ จุดตายตัว: ไม่ว่าจะสำเร็จหรือ Error ต้องปิด Loading เสมอ
-      setLoading(false); 
+      setLoading(false);
     }
   };
 
-  // Logic การกรองข้อมูล (Search + Status Filter)
-  const filteredTasks = useMemo(() => {
-    let result = tasks;
+  // Logic การแบ่งกลุ่มตามเวลาและสถานะ
+  const groupedTasks = useMemo(() => {
+    const now = startOfDay(new Date());
+    
+    // 1. Filter ขั้นต้น (Search + Tab Filter)
+    let filtered = tasks.filter(t => {
+      const matchSearch = (t.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (t.project_title || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchStatus = filterStatus === 'all' || t.status === filterStatus;
+      return matchSearch && matchStatus;
+    });
 
-    // กรองตาม Status
-    if (filterStatus !== 'all') {
-      result = result.filter(t => t.status === filterStatus);
-    }
-
-    // กรองตามการค้นหา
-    const q = (searchQuery || '').trim().toLowerCase();
-    if (q) {
-      result = result.filter(t => 
-        (t.title || '').toLowerCase().includes(q) ||
-        (t.project_title || '').toLowerCase().includes(q)
-      );
-    }
-
-    return result;
+    // 2. แยกกลุ่ม
+    return {
+      overdue: filtered.filter(t => t.status !== 'done' && t.deadline && isBefore(new Date(t.deadline), now)),
+      today: filtered.filter(t => t.status !== 'done' && t.deadline && isToday(new Date(t.deadline))),
+      active: filtered.filter(t => t.status !== 'done' && (!t.deadline || (!isBefore(new Date(t.deadline), now) && !isToday(new Date(t.deadline))))),
+      completed: filtered.filter(t => t.status === 'done')
+    };
   }, [tasks, searchQuery, filterStatus]);
 
   if (loading) {
@@ -59,102 +56,147 @@ const MyTasks = ({ searchQuery = '' }) => {
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-medium">Scanning your missions...</p>
+          <p className="mt-4 text-gray-600 font-medium italic">SCANNING SECTORS...</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-gray-800 italic tracking-tighter">MY MISSIONS</h1>
-          <p className="text-gray-500 text-sm font-bold">ALL ASSIGNED TASKS ACROSS PROJECTS</p>
+  // Helper Component สำหรับแสดง Card
+  const TaskCard = ({ task, variant = 'default' }) => (
+    <div className={`bg-white rounded-2xl shadow-md border-l-4 overflow-hidden hover:shadow-xl transition-all group ${
+      variant === 'danger' ? 'border-red-500' : 
+      variant === 'warning' ? 'border-orange-500' : 
+      variant === 'success' ? 'border-green-500' : 'border-gray-200'
+    }`}>
+      <div className="bg-gray-900 text-white px-4 py-1.5 text-[10px] font-black flex justify-between items-center tracking-widest">
+        <span className="truncate mr-2">PRJ // {task.project_title}</span>
+        <span className={`px-2 py-0.5 rounded ${
+          task.status === 'done' ? 'bg-green-600' : 
+          task.status === 'doing' ? 'bg-blue-600' : 'bg-gray-600'
+        }`}>
+          {task.status?.toUpperCase()}
+        </span>
+      </div>
+
+      <div className="p-5">
+        <h3 className="text-lg font-black text-gray-800 mb-2 leading-tight group-hover:text-primary transition-colors line-clamp-1">
+          {task.title}
+        </h3>
+        <p className="text-xs text-gray-500 italic mb-4 line-clamp-2 h-8">
+          {task.description || 'No briefing provided.'}
+        </p>
+
+        <div className="space-y-2 mb-4">
+          <div className={`flex items-center gap-2 text-[11px] font-bold ${variant === 'danger' ? 'text-red-500' : 'text-gray-400'}`}>
+            <Calendar className="w-3.5 h-3.5" />
+            <span>DEADLINE: {task.deadline ? format(new Date(task.deadline), 'dd MMM yyyy') : 'OPEN'}</span>
+          </div>
         </div>
 
-        {/* Status Filter Tabs */}
-        <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-auto">
-          {['all', 'todo', 'doing', 'done'].map((status) => (
+        <div className="pt-4 border-t border-gray-50 flex justify-end">
+          <button
+            onClick={() => navigate(`/projects/${task.project_id}/tasks`)}
+            className="flex items-center gap-1 text-[10px] font-black text-primary hover:tracking-widest transition-all"
+          >
+            GOTO PROJECT <ExternalLink className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 pb-20 overflow-y-auto">
+      {/* Header & Filter */}
+      <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
+        <div>
+          <h1 className="text-4xl font-black text-gray-900 italic tracking-tighter leading-none">COMMAND CENTER</h1>
+          <p className="text-primary font-bold text-xs mt-2 tracking-[0.2em]">TACTICAL MISSION OVERVIEW</p>
+        </div>
+
+        <div className="flex bg-gray-200/50 p-1.5 rounded-2xl w-full md:w-auto backdrop-blur-sm">
+          {['all', 'todo', 'doing', 'done'].map((s) => (
             <button
-              key={status}
-              onClick={() => setFilterStatus(status)}
-              className={[
-                'flex-1 md:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all',
-                filterStatus === status 
-                  ? 'bg-white text-primary shadow-sm' 
-                  : 'text-gray-500 hover:text-gray-700'
-              ].join(' ')}
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`flex-1 md:flex-none px-6 py-2 rounded-xl text-[10px] font-black transition-all ${
+                filterStatus === s ? 'bg-white text-primary shadow-lg scale-105' : 'text-gray-500 hover:text-gray-800'
+              }`}
             >
-              {status.toUpperCase()}
+              {s.toUpperCase()}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Grid Layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTasks.length === 0 ? (
-          <div className="col-span-full bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl py-20 text-center">
-            <CheckCircle2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 font-bold italic">NO TASKS FOUND IN THIS SECTOR</p>
-          </div>
-        ) : (
-          filteredTasks.map((task) => (
-            <div
-              key={task.id}
-              className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden hover:shadow-xl transition-all group"
-            >
-              {/* Project Tag Line */}
-              <div className="bg-dark text-white px-4 py-1 text-[10px] font-black flex justify-between items-center tracking-widest uppercase">
-                <span>PROJECT: {task.project_title}</span>
-                <span className={`px-2 rounded ${
-                  task.status === 'done' ? 'bg-green-500' : 
-                  task.status === 'doing' ? 'bg-orange-500' : 'bg-gray-500'
-                }`}>
-                  {task.status}
-                </span>
+      <div className="space-y-12">
+        {/* 1. OVERDUE SECTION */}
+        {groupedTasks.overdue.length > 0 && (
+          <section>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-red-500 p-2 rounded-lg text-white">
+                <AlertTriangle className="w-5 h-5 animate-pulse" />
               </div>
-
-              <div className="p-6">
-                <h3 className="text-xl font-extrabold text-gray-800 mb-2 leading-tight group-hover:text-primary transition-colors">
-                  {task.title}
-                </h3>
-                
-                <p className="text-sm text-gray-500 italic mb-6 line-clamp-2 h-10">
-                  {task.description || 'No detailed briefing available.'}
-                </p>
-
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center gap-3 text-xs font-bold text-gray-400">
-                    <Calendar className="w-4 h-4" />
-                    <span>DEADLINE: {task.deadline ? format(new Date(task.deadline), 'MMM dd, yyyy') : 'N/A'}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs font-bold text-gray-400">
-                    <Clock className="w-4 h-4" />
-                    <span>STATUS: {task.status?.toUpperCase()}</span>
-                  </div>
-                </div>
-
-                {/* Footer Action */}
-                <div className="pt-4 border-t border-gray-50 flex justify-between items-center">
-                   <div className="flex -space-x-2">
-                      <div className="w-8 h-8 rounded-full border-2 border-white bg-primary flex items-center justify-center text-[10px] text-white font-bold">
-                        ME
-                      </div>
-                   </div>
-                   
-                   <button
-                    onClick={() => navigate(`/projects/${task.project_id}/tasks`)}
-                    className="flex items-center gap-1 text-xs font-black text-primary hover:gap-2 transition-all"
-                  >
-                    GO TO PROJECT <ExternalLink className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
+              <h2 className="text-xl font-black italic text-red-600 tracking-tight">CRITICAL: OVERDUE</h2>
+              <div className="h-[2px] flex-1 bg-gradient-to-r from-red-100 to-transparent"></div>
             </div>
-          ))
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {groupedTasks.overdue.map(t => <TaskCard key={t.id} task={t} variant="danger" />)}
+            </div>
+          </section>
+        )}
+
+        {/* 2. TODAY SECTION */}
+        {groupedTasks.today.length > 0 && (
+          <section>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-orange-500 p-2 rounded-lg text-white">
+                <Clock className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-black italic text-orange-600 tracking-tight">DUE WITHIN 24H</h2>
+              <div className="h-[2px] flex-1 bg-gradient-to-r from-orange-100 to-transparent"></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {groupedTasks.today.map(t => <TaskCard key={t.id} task={t} variant="warning" />)}
+            </div>
+          </section>
+        )}
+
+        {/* 3. ACTIVE MISSIONS */}
+        <section>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-gray-800 p-2 rounded-lg text-white">
+              <Target className="w-5 h-5" />
+            </div>
+            <h2 className="text-xl font-black italic text-gray-800 tracking-tight">ACTIVE MISSIONS</h2>
+            <div className="h-[2px] flex-1 bg-gradient-to-r from-gray-100 to-transparent"></div>
+          </div>
+          {groupedTasks.active.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {groupedTasks.active.map(t => <TaskCard key={t.id} task={t} />)}
+            </div>
+          ) : (
+            <div className="py-12 border-2 border-dashed border-gray-200 rounded-3xl text-center">
+              <p className="text-gray-400 font-bold italic">NO PENDING MISSIONS IN THIS SECTOR</p>
+            </div>
+          )}
+        </section>
+
+        {/* 4. COMPLETED SECTION */}
+        {groupedTasks.completed.length > 0 && (
+          <section className="opacity-60 grayscale-[0.5] hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-green-500 p-2 rounded-lg text-white">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-black italic text-green-600 tracking-tight">MISSION ACCOMPLISHED</h2>
+              <div className="h-[2px] flex-1 bg-gradient-to-r from-green-100 to-transparent"></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {groupedTasks.completed.map(t => <TaskCard key={t.id} task={t} variant="success" />)}
+            </div>
+          </section>
         )}
       </div>
     </div>

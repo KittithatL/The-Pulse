@@ -36,7 +36,7 @@ const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) return null;
-  if (isAuthenticated) return <Navigate to="/projects" replace />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
   return children;
 };
