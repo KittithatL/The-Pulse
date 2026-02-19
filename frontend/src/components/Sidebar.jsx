@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   CheckSquare,
-  GitBranch,
-  BarChart3,
   DollarSign,
-  MessageSquare,
   Target,
   Shield,
   ChevronLeft,
@@ -28,19 +25,16 @@ const Sidebar = () => {
     { icon: Calendar, label: 'MY DAY', path: '/my-days' },
   ];
 
-  // 2. เมนูเฉพาะโปรเจกต์ (Active Project)
+  // 2. เมนูเฉพาะโปรเจกต์ (Active Project) - ตัด Flow, Chat และ Retro ออกแล้ว
   const projectSpecificItems = projectId ? [
     { icon: Layout, label: 'PROJECT OVERVIEW', path: `/dashboard/${projectId}` },
     { icon: CheckSquare, label: 'TASKS KANBAN', path: `/projects/${projectId}/tasks` },
-    { icon: GitBranch, label: 'PROJECT FLOW', path: `/dashboard/${projectId}/flow` },
     { icon: DollarSign, label: 'FINANCIAL HUB', path: `/dashboard/${projectId}/finance` },
     { icon: ShieldAlert, label: 'RISK SENTINEL', path: `/dashboard/${projectId}/risk-sentinel` },
     { icon: Target, label: 'DECISION HUB', path: `/dashboard/${projectId}/decisions` },
-    { icon: MessageSquare, label: 'PROJECT CHAT', path: `/dashboard/${projectId}/chat` },
-    { icon: BarChart3, label: 'RETRO BOARD', path: `/dashboard/${projectId}/retro` },
   ] : [];
 
-  // 3. เมนู Admin (คงไว้ในส่วนล่างสุด)
+  // 3. เมนู Admin
   const adminItems = [
     { icon: Shield, label: 'ADMIN PANEL', path: '/admin' },
   ];
@@ -81,8 +75,8 @@ const Sidebar = () => {
       >
         {/* LOGO SECTION */}
         <div className={`flex items-center gap-3 mb-10 px-2 ${isCollapsed ? 'justify-center' : ''}`}>
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/30">
-            <span className="text-white font-black text-xl">P</span>
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/30 text-white font-black text-xl">
+            P
           </div>
           {!isCollapsed && (
             <div className="overflow-hidden">
@@ -103,7 +97,7 @@ const Sidebar = () => {
             {coreItems.map(renderMenuItem)}
           </nav>
 
-          {/* ACTIVE PROJECT - แสดงเมื่อเลือกโปรเจกต์ */}
+          {/* ACTIVE PROJECT - แสดงเฉพาะเมื่อเลือกโปรเจกต์แล้ว */}
           {projectId && (
             <nav className="space-y-1 pt-4 border-t border-white/5 animate-in fade-in slide-in-from-left-4 duration-500">
               {!isCollapsed && (
