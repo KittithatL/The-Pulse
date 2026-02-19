@@ -219,11 +219,12 @@ const ProjectTasks = () => {
     title: '',
     description: '',
     status: 'todo',
+    priority: 'medium', // เพิ่มค่าเริ่มต้น
     start_at: '',
     deadline: '',
     dorItems: [],
     dodItems: [],
-    assigned_to: '', // user_id
+    assigned_to: '',
   });
 
   // Detail popup
@@ -234,11 +235,12 @@ const ProjectTasks = () => {
     title: '',
     description: '',
     status: 'todo',
+    priority: 'medium',
     start_at: '',
     deadline: '',
     dorItems: [],
     dodItems: [],
-    assigned_to: '', // user_id
+    assigned_to: '',
   });
 
   // ✅ owner-only permission (พยายามจับให้ได้จาก fields ที่พบบ่อย)
@@ -318,6 +320,7 @@ const canEditOrMove = (task) => {
       dor: stringifyChecklist(form.dorItems),
       dod: stringifyChecklist(form.dodItems),
       assigned_to: form.assigned_to ? Number(form.assigned_to) : null,
+      priority: form.priority || 'medium',
     };
     if (form.start_at) payload.start_at = form.start_at.slice(0, 10);
     if (form.deadline) payload.deadline = form.deadline.slice(0, 10);
@@ -339,6 +342,7 @@ const canEditOrMove = (task) => {
       dorItems: parseChecklist(task.dor),
       dodItems: parseChecklist(task.dod),
       assigned_to: task.assigned_to ? String(task.assigned_to) : '',
+      priority: task.priority || 'medium',
     });
     setShowDetail(true);
   };
@@ -694,7 +698,7 @@ const canEditOrMove = (task) => {
                 <X className="w-6 h-6 text-gray-400 hover:text-gray-600" />
               </button>
             </div>
-
+        
             <form onSubmit={createTask} className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div>
@@ -707,9 +711,21 @@ const canEditOrMove = (task) => {
                     required
                   />
                 </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-2">PRIORITY</label>
+                  <select
+                    value={createForm.priority} // สำหรับ Create Modal ให้ใช้ createForm, สำหรับ Detail ให้ใช้ detailForm
+                    onChange={(e) => setCreateForm(p => ({ ...p, priority: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  >
+                    <option value="low">LOW</option>
+                    <option value="medium">MEDIUM</option>
+                    <option value="high">HIGH</option>
+                  </select>
+                </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-2">ASSIGN TO</label>
+                  
                   <select
                     value={createForm.assigned_to || ''} // ✅ เปลี่ยนจาก detailForm เป็น createForm
                     disabled={!isOwner} // ✅ Member จะเลือกไม่ได้ (Backend จะล็อกให้เป็นตัวเองอัตโนมัติ)
@@ -759,24 +775,6 @@ const canEditOrMove = (task) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
                   />
                 </div>
-              </div>
-
-              {/* Assign */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-2">ASSIGN TO</label>
-                <select
-                  value={detailForm.assigned_to || ''}
-                  disabled={!isOwner}
-                  onChange={(e) => setDetailForm(p => ({ ...p, assigned_to: e.target.value }))}
-                  className="..."
-                >
-                  <option value="">— Unassigned —</option>
-                  {members.map((m) => (
-                    <option key={m.user_id} value={String(m.user_id)}>
-                      {(m.username || '').toUpperCase()}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -849,6 +847,20 @@ const canEditOrMove = (task) => {
                   />
                 </div>
 
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-2">PRIORITY</label>
+                  <select
+                    value={detailForm.priority} // สำหรับ Create Modal ให้ใช้ createForm, สำหรับ Detail ให้ใช้ detailForm
+                    onChange={(e) => setDetailForm(p => ({ ...p, priority: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  >
+                    <option value="low">LOW</option>
+                    <option value="medium">MEDIUM</option>
+                    <option value="high">HIGH</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-2">STATUS</label>
                   <select
@@ -875,7 +887,6 @@ const canEditOrMove = (task) => {
                   onChange={(e) => setDetailForm((p) => ({ ...p, assigned_to: e.target.value }))}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-gray-50"
                 >
-                  <option value="">— Unassigned —</option>
                   {members.map((m) => (
                     <option key={m.user_id} value={String(m.user_id)}>
                       {(m.username || '').toUpperCase()}
