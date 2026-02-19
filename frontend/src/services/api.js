@@ -57,7 +57,6 @@ export const taskAPI = {
   createTask: (projectId, data) => api.post(`/projects/${projectId}/tasks`, data),
   
   // Single Task Operations
-  getTasks: (projectId, params) => api.get(`/projects/${projectId}/tasks`, { params }),
   updateTask: (id, data) => api.put(`/tasks/${id}`, data), // ใช้สำหรับแก้ Status ได้ด้วย
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   
@@ -82,6 +81,9 @@ export const dashboardAPI = {
   
   // ⚠️ เพิ่ม: Resolve Risk (เรามี route นี้ใน backend)
   resolveRisk: (alertId) => api.patch(`/dashboard/risks/${alertId}/resolve`),
+
+  // 🚀 เพิ่มใหม่: Risk Sentinel (สำหรับหน้า Risk)
+  getRiskSentinel: (projectId) => api.get(`/dashboard/${projectId}/risk-sentinel`),
 
   // ⚠️ หมายเหตุ: API ด้านล่างนี้ยังไม่ได้ทำใน Backend (ต้องไปเพิ่ม Controller ก่อนถึงจะใช้ได้)
   // getMoodHistory: (projectId, days) => api.get(`/dashboard/${projectId}/mood/history`, { params: { days } }),

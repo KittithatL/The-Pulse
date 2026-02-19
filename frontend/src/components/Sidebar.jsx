@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   LayoutDashboard,
   Calendar,
@@ -16,11 +16,27 @@ import {
   Box,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert
 } from 'lucide-react';
 
 const Sidebar = () => {
   const location = useLocation();
+  const { projectId } = useParams();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // ✅ ฟีเจอร์ใหม่: จำ Project ล่าสุดที่เข้าใช้งานไว้ใน LocalStorage
+  useEffect(() => {
+    if (projectId) {
+      localStorage.setItem('lastVisitedProjectId', projectId);
+    }
+  }, [projectId]);
+
+  // ดึง Project ล่าสุดออกมาใช้ (ถ้ามี)
+  const savedProjectId = localStorage.getItem('lastVisitedProjectId');
+  const activeProjectId = projectId || savedProjectId;
+
+  // ✅ ถ้ามี Project ID ให้วิ่งไปหน้านั้นเลย ถ้าไม่เคยเข้าเลยค่อยให้ไปหน้า Projects
+  const riskSentinelPath = activeProjectId ? `/dashboard/${activeProjectId}/risk-sentinel` : '/projects';
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'DASHBOARD', path: '/dashboard' },
@@ -33,18 +49,25 @@ const Sidebar = () => {
     { icon: Users, label: 'PAYROLL', path: '/payroll' },
     { icon: MessageSquare, label: 'PROJECT CHAT', path: '/project-chat' },
     { icon: Target, label: 'DECISION HUB', path: '/decision-hub' },
-    { icon: Shield, label: 'RISK SENTINEL', path: '/risk-sentinel' },
+    { icon: ShieldAlert, label: 'RISK SENTINEL', path: riskSentinelPath }, // ใช้ Path แบบฉลาด
     { icon: BookOpen, label: 'SKILL MATRIX', path: '/skill-matrix' },
     { icon: Heart, label: 'CULTURE FEEDBACK', path: '/culture-feedback' },
     { icon: Box, label: 'ARCHITECTURE', path: '/architecture' },
     { icon: Shield, label: 'ADMIN', path: '/admin' },
   ];
 
-  const isPathActive = (itemPath) => {
-    if (itemPath === '/projects') {
+  // ✅ แก้บัคปุ่มแดงซ้อนกัน โดยเช็คจาก "ชื่อเมนู" แทน
+  const isPathActive = (item) => {
+    if (item.label === 'PROJECTS') {
       return location.pathname === '/projects' || location.pathname.startsWith('/projects/');
     }
-    return location.pathname === itemPath;
+    if (item.label === 'RISK SENTINEL') {
+      return location.pathname.includes('/risk-sentinel');
+    }
+    if (item.label === 'DASHBOARD') {
+      return location.pathname.startsWith('/dashboard') && !location.pathname.includes('/risk-sentinel');
+    }
+    return location.pathname === item.path;
   };
 
   return (
@@ -72,7 +95,7 @@ const Sidebar = () => {
         <nav className="flex-1 space-y-2 overflow-y-auto scrollbar-hide">
           {menuItems.map((item, index) => {
             const Icon = item.icon;
-            const active = isPathActive(item.path);
+            const active = isPathActive(item); // ส่งอ็อบเจกต์ไปเช็คแทน
 
             return (
               <Link

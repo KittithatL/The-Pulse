@@ -9,6 +9,8 @@ import Register from './pages/Register';
 import ProjectTasks from './pages/ProjectTask';
 import MyTasks from './pages/Mytasks';
 import Dashboard from './pages/Dashboard';
+// ✅ 1. Import หน้า RiskSentinel เข้ามา
+import RiskSentinel from './pages/RiskSentinel'; 
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -128,7 +130,7 @@ function AppRoutes() {
           }
         />
 
-        {/* ✅ Dashboard Specific Project (แสดงผลจริง) - ต้องเพิ่มอันนี้ครับ! */}
+        {/* ✅ Dashboard Specific Project (แสดงผลจริง) */}
         <Route
           path="/dashboard/:projectId"
           element={
@@ -146,6 +148,18 @@ function AppRoutes() {
             <ProtectedRoute>
               <Layout onSearch={handleSearch}>
                 <MyTasks searchQuery={searchQuery} />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* ✅ Risk Sentinel (แทนที่อันเก่า และใส่ projectId) */}
+        <Route
+          path="/dashboard/:projectId/risk-sentinel"
+          element={
+            <ProtectedRoute>
+              <Layout onSearch={handleSearch}>
+                <RiskSentinel />
               </Layout>
             </ProtectedRoute>
           }
@@ -243,20 +257,6 @@ function AppRoutes() {
               <Layout onSearch={handleSearch}>
                 <div className="text-center py-20">
                   <h1 className="text-4xl font-bold text-gray-800">Decision Hub</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/risk-sentinel"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Risk Sentinel</h1>
                   <p className="text-gray-600 mt-4">Coming soon...</p>
                 </div>
               </Layout>
