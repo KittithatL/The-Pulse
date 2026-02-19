@@ -7,7 +7,6 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // withCredentials: true, // เปิดถ้าจะใช้ Cookie ในอนาคต
 });
 
 // ✅ Interceptor: แนบ Token อัตโนมัติ
@@ -27,10 +26,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // เคลียร์ข้อมูลและ Redirect ไปหน้า Login
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      // window.location.href = '/login'; // แนะนำให้ handle ใน React Context ดีกว่าการ Hard reload
     }
     return Promise.reject(error);
   }
@@ -46,54 +43,55 @@ export const projectAPI = {
   
   // Member Management
   getMembers: (id) => api.get(`/projects/${id}/members`),
-  addMember: (id, data) => api.post(`/projects/${id}/members`, data), // data = { emailOrUsername, role }
+  addMember: (id, data) => api.post(`/projects/${id}/members`, data),
   removeMember: (projectId, userId) => api.delete(`/projects/${projectId}/members/${userId}`),
 };
 
 // ✅ 2. Task API
 export const taskAPI = {
-  // Project Tasks
-  getTasks: (projectId, params) => api.get(`/projects/${projectId}/tasks`, { params }), // params = { status }
+  getTasks: (projectId, params) => api.get(`/projects/${projectId}/tasks`, { params }),
   createTask: (projectId, data) => api.post(`/projects/${projectId}/tasks`, data),
-  
-  // Single Task Operations
-  updateTask: (id, data) => api.put(`/tasks/${id}`, data), // ใช้สำหรับแก้ Status ได้ด้วย
+  updateTask: (id, data) => api.put(`/tasks/${id}`, data),
   deleteTask: (id) => api.delete(`/tasks/${id}`),
-  
-  // Quick Update Status (ใช้ Endpoint เดียวกับ updateTask แต่ส่งแค่ status)
   updateTaskStatus: (id, status) => api.put(`/tasks/${id}`, { status }),
-  
-  // My Tasks (ถ้ามี route นี้ใน backend)
   getMyTasks: () => api.get('/myTasks'),
 
-  // Chat / Messages
+  // Messages
   getMessages: (taskId) => api.get(`/tasks/${taskId}/messages`),
   sendMessage: (taskId, message) => api.post(`/tasks/${taskId}/messages`, { message }),
   deleteMessage: (messageId) => api.delete(`/messages/${messageId}`),
 };
 
-// ✅ 3. Dashboard API (ต้องตรงกับ routes/dashboardRoutes.js)
+// ✅ 3. Dashboard API (Sync กับ Backend ล่าสุด)
 export const dashboardAPI = {
+  // ดึงสถิติรายโปรเจกต์
   getOverview: (projectId) => api.get(`/dashboard/${projectId}/overview`),
   getInfrastructure: (projectId) => api.get(`/dashboard/${projectId}/infrastructure`),
-  getRisks: (projectId) => api.get(`/dashboard/${projectId}/risks`),
+  
+  // ✅ แยก Path แจ้งเตือนรวมออกจากแจ้งเตือนรายโปรเจกต์
+  getRisks: (projectId) => {
+    if (projectId === 'all') {
+      return api.get('/dashboard/notifications/all'); 
+    }
+    return api.get(`/dashboard/${projectId}/risks`); 
+  },
+  
   submitMood: (projectId, score) => api.post(`/dashboard/${projectId}/mood`, { sentiment_score: score }),
   
-  // ⚠️ เพิ่ม: Resolve Risk (เรามี route นี้ใน backend)
-  resolveRisk: (alertId) => api.patch(`/dashboard/risks/${alertId}/resolve`),
+  // Resolve Risk (จัดการผ่าน Alert ID โดยตรง)
+  resolveRisk: (alertId) => api.patch(`/dashboard/alerts/${alertId}/resolve`),
 
-  // 🚀 เพิ่มใหม่: Risk Sentinel (สำหรับหน้า Risk)
+  // ✅ เพิ่มฟังก์ชัน Clear All Notifications
+  clearAllNotifications: () => api.delete('/dashboard/notifications/clear-all'),
+
+  // 🚀 Risk Sentinel (Strategic Analysis)
   getRiskSentinel: (projectId) => api.get(`/dashboard/${projectId}/risk-sentinel`),
-
-  // ⚠️ หมายเหตุ: API ด้านล่างนี้ยังไม่ได้ทำใน Backend (ต้องไปเพิ่ม Controller ก่อนถึงจะใช้ได้)
-  // getMoodHistory: (projectId, days) => api.get(`/dashboard/${projectId}/mood/history`, { params: { days } }),
-  // getCycle: (projectId) => api.get(`/dashboard/${projectId}/cycle`),
 };
 
 // ✅ 4. Auth API
 export const authAPI = {
-  register: (data) => api.post('/auth/register', data), // data = { username, email, password }
-  login: (data) => api.post('/auth/login', data),       // data = { email, password }
+  register: (data) => api.post('/auth/register', data),
+  login: (data) => api.post('/auth/login', data),
   getCurrentUser: () => api.get('/auth/me'),
 };
 

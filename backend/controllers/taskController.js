@@ -91,7 +91,7 @@ const getTask = async (req, res) => {
   }
 };
 
-// ✅ 3. Create Task (แก้ไข: บังคับ start_at เป็นวันปัจจุบัน)
+// ✅ 3. Create Task (Real-time Notification)
 const createTask = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -139,10 +139,32 @@ const createTask = async (req, res) => {
       ]
     );
 
+    const newTask = result.rows[0];
+
+    // ✅ [Real-time] ส่งสัญญาณแจ้งเตือนผ่าน Socket.io
+    const io = req.app.get('io');
+    if (io && assignedToFinal) {
+      // ดึงชื่อโปรเจกต์มาโชว์ใน Notification
+      const projectInfo = await pool.query('SELECT title FROM projects WHERE id = $1', [projectId]);
+      
+      const notificationData = {
+        id: newTask.id,
+        type: 'task',
+        message: newTask.title,
+        severity: newTask.priority,
+        project_name: projectInfo.rows[0]?.title || 'Unknown Project',
+        project_id: projectId,
+        created_at: new Date()
+      };
+
+      // ส่งให้เจ้าของงานคนเดียว (Private Room)
+      io.to(`user_${assignedToFinal}`).emit('new_notification', notificationData);
+    }
+
     return res.status(201).json({
       success: true,
       message: 'Task created successfully',
-      data: { task: result.rows[0] },
+      data: { task: newTask },
     });
   } catch (error) {
     console.error('Create task error:', error);
@@ -150,7 +172,7 @@ const createTask = async (req, res) => {
   }
 };
 
-// ✅ 4. Update Task (แก้ไข: ป้องกันวันที่ถอยหลัง)
+// ✅ 4. Update Task
 const updateTask = async (req, res) => {
   try {
     const { taskId } = req.params;
@@ -196,7 +218,6 @@ const updateTask = async (req, res) => {
     if (status !== undefined) addUpdate('status', status);
     if (priority !== undefined) addUpdate('priority', priority);
     
-    // ✅ ตัดเอาแค่ YYYY-MM-DD เพื่อแก้ปัญหาวันที่ถอยหลัง
     if (start_at && String(start_at).trim() !== '') {
       addUpdate('start_at', String(start_at).substring(0, 10));
     }
@@ -211,6 +232,18 @@ const updateTask = async (req, res) => {
          try {
            const validAssignee = await ensureAssigneeIsProjectMember(task.project_id, assigned_to);
            addUpdate('assigned_to', validAssignee);
+           
+           // ✅ [Real-time] แจ้งเตือนถ้ามีการเปลี่ยนตัวผู้รับผิดชอบงาน
+           const io = req.app.get('io');
+           if (io && validAssignee !== task.assigned_to) {
+              io.to(`user_${validAssignee}`).emit('new_notification', {
+                id: taskId,
+                type: 'task',
+                message: `You were assigned to: ${title || 'Existing Task'}`,
+                project_id: task.project_id,
+                created_at: new Date()
+              });
+           }
          } catch(e) {
            return res.status(400).json({ success: false, message: e.message });
          }
@@ -224,7 +257,7 @@ const updateTask = async (req, res) => {
   UPDATE tasks 
   SET ${updates.map(u => {
       if(u.includes('start_at') || u.includes('deadline')) {
-          return u + '::date'; // ✅ บังคับให้เป็น Date ในระดับ SQL
+          return u + '::date';
       }
       return u;
       }).join(', ')}, 
@@ -234,6 +267,13 @@ const updateTask = async (req, res) => {
     `;
 
     const result = await pool.query(query, values);
+
+    // ✅ [Real-time] ถ้างานเสร็จแล้ว แจ้งเตือนคนอื่นในโปรเจกต์ให้ลบออกจากระฆัง
+    if (status === 'done') {
+        const io = req.app.get('io');
+        if (io) io.emit('resolve_notification', { id: taskId, type: 'task' });
+    }
+
     return res.status(200).json({ success: true, data: { task: result.rows[0] } });
   } catch (error) {
     console.error('Update task error:', error);
@@ -261,6 +301,11 @@ const deleteTask = async (req, res) => {
     }
 
     await pool.query('DELETE FROM tasks WHERE id = $1', [taskId]);
+
+    // ✅ [Real-time] สั่งให้ Navbar ของทุกคนลบงานที่ถูกลบทิ้งไปแล้วออก
+    const io = req.app.get('io');
+    if (io) io.emit('resolve_notification', { id: taskId, type: 'task' });
+
     return res.status(200).json({ success: true, message: 'Task deleted successfully' });
   } catch (error) {
     console.error('Delete error:', error);

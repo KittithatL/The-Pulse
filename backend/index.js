@@ -1,10 +1,12 @@
 const path = require('path');
 const express = require('express');
+const http = require('http'); // ✅ เพิ่มเพื่อสร้าง Server สำหรับ Socket.io
+const { Server } = require('socket.io'); // ✅ นำเข้า Socket.io
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
-const pool = require('./config/database'); // ✅ นำเข้า Database Pool
+const pool = require('./config/database');
 
 // ✅ Load .env
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -13,30 +15,43 @@ const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const myTaskRoutes = require("./routes/myTaskRoutes");
-const dashboardRoutes = require('./routes/dashboardRoutes'); // ✅ เพิ่ม Dashboard Routes
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-// ✅ Fail-fast checks
-const requiredEnv = [
-  'DB_HOST',
-  'DB_PORT',
-  'DB_NAME',
-  'DB_USER',
-  'DB_PASSWORD',
-  'JWT_SECRET',
-];
+// ✅ สร้าง HTTP Server จาก Express App
+const server = http.createServer(app);
 
-const missing = requiredEnv.filter((k) => !process.env[k] || String(process.env[k]).trim() === '');
-if (missing.length > 0) {
-  console.error('\n❌ Missing required environment variables:');
-  for (const k of missing) console.error(`   - ${k}`);
-  process.exit(1);
-}
+// ✅ 1. เริ่มการตั้งค่า Socket.io
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
+    credentials: true,
+  },
+});
+
+// ✅ 2. ทำให้ io เข้าถึงได้จาก Controller ผ่าน req.app.get('io')
+app.set('io', io);
+
+// ✅ 3. จัดการการเชื่อมต่อของ WebSocket
+io.on('connection', (socket) => {
+  console.log(`⚡ Client Connected: ${socket.id}`);
+
+  // ให้ User เข้าร่วมห้องส่วนตัวตาม ID (สำหรับส่งงานเฉพาะตัวคนนั้น)
+  socket.on('join_user_room', (userId) => {
+    socket.join(`user_${userId}`);
+    console.log(`👤 User ${userId} joined their tactical room`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('🔥 Client Disconnected');
+  });
+});
 
 // --- Middlewares ---
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false })); // ปิด CSP บางส่วนเพื่อให้รองรับ Socket.io client
 app.use(compression());
 app.use(morgan('dev'));
 app.use(cors({
@@ -46,28 +61,26 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- Health check ---
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Server is running',
-    timestamp: new Date().toISOString(),
-  });
-});
-
 // --- API Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/myTasks', myTaskRoutes);
-app.use('/api/dashboard', dashboardRoutes); // ✅ เพิ่ม Dashboard Route
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/tasks', taskRoutes);
 
-// --- 404 Handler ---
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+// --- Health check ---
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'The Pulse Server is Online',
+    timestamp: new Date().toISOString(),
+    socket_status: 'Active'
+  });
 });
 
-// --- Error Handler ---
+// --- 404 & Error Handlers ---
+app.use((req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
+
 app.use((err, req, res, next) => {
   console.error('SERVER_CRITICAL_ERROR:', err);
   const isDev = (process.env.NODE_ENV || 'development') === 'development';
@@ -78,24 +91,24 @@ app.use((err, req, res, next) => {
   });
 });
 
-// --- Startup with Database Check ---
+// ✅ 4. Startup: เปลี่ยนจาก app.listen เป็น server.listen
 const start = async () => {
   try {
-    // ตรวจสอบการเชื่อมต่อฐานข้อมูลก่อนเริ่ม Server
     await pool.query('SELECT 1'); 
     
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`
-╔═══════════════════════════════════════╗
-║                                       ║
-║    🚀 THE PULSE SERVER IS ONLINE 🚀   ║
-║                                       ║
-║   Port: ${PORT}                      ║
-║   Database: ✅ CONNECTED             ║
-║   Environment: ${process.env.NODE_ENV || 'development'}          ║
-║   Time: ${new Date().toLocaleString()}       ║
-║                                       ║
-╚═══════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════╗
+║                                                          ║
+║          🚀 THE PULSE COMMAND CENTER ONLINE 🚀           ║
+║                                                          ║
+║   Port: ${PORT}                                             ║
+║   Database: ✅ CONNECTED                                 ║
+║   WebSockets: ⚡ ENABLED (Socket.io)                      ║
+║   Environment: ${process.env.NODE_ENV || 'development'}                           ║
+║   Time: ${new Date().toLocaleString()}                    ║
+║                                                          ║
+╚══════════════════════════════════════════════════════════╝
       `);
     });
   } catch (err) {
@@ -105,5 +118,3 @@ const start = async () => {
 };
 
 start();
-
-module.exports = app;

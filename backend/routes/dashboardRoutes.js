@@ -3,21 +3,56 @@ const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
 const { protect } = require('../middleware/authMiddleware');
 
-// ป้องกันการเข้าถึง ต้อง Login ก่อน
+// 🔒 ป้องกันการเข้าถึง: ต้องทำการ Login (Authentication) ก่อนเข้าถึงข้อมูลทุกส่วน
 router.use(protect);
 
-// ----------------------------------------
-// Dashboard Overview & KPIs
-// ----------------------------------------
+// ---------------------------------------------------------
+// 🔔 Global Notifications (Navbar)
+// ---------------------------------------------------------
+
+/** * ✅ 1. ดึงการแจ้งเตือนความเสี่ยงและงานทั้งหมด (Cross-project)
+ */
+router.get('/notifications/all', dashboardController.getAllUserNotifications);
+
+/** * ✅ 2. ล้างการแจ้งเตือนทั้งหมดของผู้ใช้ (Clear All)
+ * ต้องวางไว้ก่อน /:projectId เพื่อไม่ให้ Express สับสนว่า 'notifications' คือ ID
+ */
+router.delete('/notifications/clear-all', dashboardController.clearAllNotifications);
+
+
+// ---------------------------------------------------------
+// 📊 Dashboard Overview & KPIs (รายโปรเจกต์)
+// ---------------------------------------------------------
+
+// ดึงข้อมูลสถิติภาพรวม ความคืบหน้า และ AI Briefing
 router.get('/:projectId/overview', dashboardController.getDashboardOverview);
+
+// ดึงสถานะสุขภาพของโครงสร้างพื้นฐาน (Hardware/Cloud)
 router.get('/:projectId/infrastructure', dashboardController.getInfrastructureHealth);
+
+// ดึงรายการความเสี่ยงที่ยังไม่ได้รับการแก้ไขของโปรเจกต์นั้น
 router.get('/:projectId/risks', dashboardController.getRiskAlerts);
+
+// สร้าง Risk Alert (ใช้สำหรับจำลองเหตุการณ์หรือเทสระบบแจ้งเตือน)
+router.post('/:projectId/alerts', dashboardController.createRiskAlert);
+
+// บันทึกอารมณ์ของทีม (Sentiment Sync) รายวัน
 router.post('/:projectId/mood', dashboardController.submitTeamMood);
+
+
+// ---------------------------------------------------------
+// 🛠️ Action Handlers (Specific IDs)
+// ---------------------------------------------------------
+
+// จัดการสถานะการแจ้งเตือนว่า "แก้ไขแล้ว" (Resolve)
 router.patch('/alerts/:alertId/resolve', dashboardController.resolveRiskAlert); 
 
-// ----------------------------------------
-// 🚀 Risk Sentinel (เพิ่มใหม่ สำหรับหน้านี้โดยเฉพาะ)
-// ----------------------------------------
+
+// ---------------------------------------------------------
+// 🚀 Risk Sentinel (Strategic Analysis)
+// ---------------------------------------------------------
+
+// ดึงข้อมูลการวิเคราะห์เชิงลึก (Matrix, Bus Factor, Mitigation Tasks)
 router.get('/:projectId/risk-sentinel', dashboardController.getRiskSentinelData);
 
 module.exports = router;
