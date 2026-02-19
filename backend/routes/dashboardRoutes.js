@@ -3,19 +3,23 @@ const router = express.Router();
 const dashboardController = require('../controllers/dashboardController');
 const { protect } = require('../middleware/authMiddleware');
 
-// 🔒 ป้องกันการเข้าถึง: ต้องทำการ Login (Authentication) ก่อนเข้าถึงข้อมูลทุกส่วน
+// 🔒 ป้องกันการเข้าถึง: ต้องทำการ Login ก่อนเข้าถึงข้อมูลทุกส่วน
 router.use(protect);
 
 // ---------------------------------------------------------
-// 🔔 Global Notifications (Navbar)
+// 🔔 Global Notifications & Personal Briefing
 // ---------------------------------------------------------
 
-/** * ✅ 1. ดึงการแจ้งเตือนความเสี่ยงและงานทั้งหมด (Cross-project)
+/** * ✅ 1. ดึงการแจ้งเตือนความเสี่ยงและงานทั้งหมด (Navbar)
  */
 router.get('/notifications/all', dashboardController.getAllUserNotifications);
 
-/** * ✅ 2. ล้างการแจ้งเตือนทั้งหมดของผู้ใช้ (Clear All)
- * ต้องวางไว้ก่อน /:projectId เพื่อไม่ให้ Express สับสนว่า 'notifications' คือ ID
+/** * ✅ 2. ข้อมูลสรุปสำหรับหน้า My Day (Mission Control Center)
+ * ดึงข้อมูล Critical Path, System Integrity และ Gemini Insights
+ */
+router.get('/my-day/briefing', dashboardController.getMyDayBriefing);
+
+/** * ✅ 3. ล้างการแจ้งเตือนทั้งหมดของผู้ใช้ (Clear All)
  */
 router.delete('/notifications/clear-all', dashboardController.clearAllNotifications);
 
@@ -33,7 +37,7 @@ router.get('/:projectId/infrastructure', dashboardController.getInfrastructureHe
 // ดึงรายการความเสี่ยงที่ยังไม่ได้รับการแก้ไขของโปรเจกต์นั้น
 router.get('/:projectId/risks', dashboardController.getRiskAlerts);
 
-// สร้าง Risk Alert (ใช้สำหรับจำลองเหตุการณ์หรือเทสระบบแจ้งเตือน)
+// สร้าง Risk Alert (ใช้สำหรับจำลองเหตุการณ์)
 router.post('/:projectId/alerts', dashboardController.createRiskAlert);
 
 // บันทึกอารมณ์ของทีม (Sentiment Sync) รายวัน

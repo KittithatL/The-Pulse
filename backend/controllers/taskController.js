@@ -141,10 +141,8 @@ const createTask = async (req, res) => {
 
     const newTask = result.rows[0];
 
-    // ✅ [Real-time] ส่งสัญญาณแจ้งเตือนผ่าน Socket.io
     const io = req.app.get('io');
     if (io && assignedToFinal) {
-      // ดึงชื่อโปรเจกต์มาโชว์ใน Notification
       const projectInfo = await pool.query('SELECT title FROM projects WHERE id = $1', [projectId]);
       
       const notificationData = {
@@ -157,7 +155,6 @@ const createTask = async (req, res) => {
         created_at: new Date()
       };
 
-      // ส่งให้เจ้าของงานคนเดียว (Private Room)
       io.to(`user_${assignedToFinal}`).emit('new_notification', notificationData);
     }
 
@@ -233,7 +230,6 @@ const updateTask = async (req, res) => {
            const validAssignee = await ensureAssigneeIsProjectMember(task.project_id, assigned_to);
            addUpdate('assigned_to', validAssignee);
            
-           // ✅ [Real-time] แจ้งเตือนถ้ามีการเปลี่ยนตัวผู้รับผิดชอบงาน
            const io = req.app.get('io');
            if (io && validAssignee !== task.assigned_to) {
               io.to(`user_${validAssignee}`).emit('new_notification', {
@@ -268,7 +264,6 @@ const updateTask = async (req, res) => {
 
     const result = await pool.query(query, values);
 
-    // ✅ [Real-time] ถ้างานเสร็จแล้ว แจ้งเตือนคนอื่นในโปรเจกต์ให้ลบออกจากระฆัง
     if (status === 'done') {
         const io = req.app.get('io');
         if (io) io.emit('resolve_notification', { id: taskId, type: 'task' });
@@ -302,7 +297,6 @@ const deleteTask = async (req, res) => {
 
     await pool.query('DELETE FROM tasks WHERE id = $1', [taskId]);
 
-    // ✅ [Real-time] สั่งให้ Navbar ของทุกคนลบงานที่ถูกลบทิ้งไปแล้วออก
     const io = req.app.get('io');
     if (io) io.emit('resolve_notification', { id: taskId, type: 'task' });
 
@@ -313,4 +307,36 @@ const deleteTask = async (req, res) => {
   }
 };
 
-module.exports = { getTasks, getTask, createTask, updateTask, deleteTask };
+// ✅ 6. Get My Tasks (สำหรับหน้า My Day และ My Tasks)
+const getMyTasks = async (req, res) => {
+    try {
+        const userId = req.user.id; 
+        const result = await pool.query(
+            `SELECT t.*, p.title as project_name 
+             FROM public.tasks t
+             JOIN public.projects p ON t.project_id = p.id
+             WHERE t.assigned_to = $1 AND t.status != 'done'
+             ORDER BY 
+                CASE 
+                    WHEN t.priority = 'critical' THEN 1
+                    WHEN t.priority = 'high' THEN 2
+                    ELSE 3 
+                END ASC, t.deadline ASC`,
+            [userId]
+        );
+        res.json({ success: true, data: { tasks: result.rows } });
+    } catch (err) {
+        console.error('Get my tasks error:', err);
+        res.status(500).json({ success: false, message: 'Failed to fetch personal tasks' });
+    }
+};
+
+// ✅ ส่งออกฟังก์ชันทั้งหมด (รวม getMyTasks ด้วย)
+module.exports = { 
+    getTasks, 
+    getTask, 
+    createTask, 
+    updateTask, 
+    deleteTask, 
+    getMyTasks // ต้องมีบรรทัดนี้เพื่อป้องกัน Error ใน Route
+};

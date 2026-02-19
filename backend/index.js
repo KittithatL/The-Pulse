@@ -61,12 +61,14 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --- API Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/myTasks', myTaskRoutes);
+
+// ✅ ปรับให้เป็น /api/tasks (พหูพจน์) เพื่อให้ตรงกับโครงสร้างหลักและ api.js
+app.use('/api/tasks', taskRoutes); 
+
+app.use('/api/myTasks', myTaskRoutes); 
 app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/tasks', taskRoutes);
 
 // --- Health check ---
 app.get('/health', (req, res) => {
