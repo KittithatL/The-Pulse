@@ -13,7 +13,6 @@ import {
   ShieldAlert,
   FolderKanban,
   Layout,
-  Settings,
   Calendar
 } from 'lucide-react';
 
@@ -22,14 +21,14 @@ const Sidebar = () => {
   const { projectId } = useParams(); 
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // 1. เมนูหลัก (แสดงตลอดเวลา - ตัด Global Overview ออกแล้ว)
+  // 1. เมนูหลัก (Navigator)
   const coreItems = [
     { icon: FolderKanban, label: 'ALL PROJECTS', path: '/projects' },
     { icon: CheckSquare, label: 'MY TASKS', path: '/my-tasks' },
     { icon: Calendar, label: 'MY DAY', path: '/my-days' },
   ];
 
-  // 2. เมนูเฉพาะโปรเจกต์ (แสดงเมื่อเลือกโปรเจกต์แล้วเท่านั้น)
+  // 2. เมนูเฉพาะโปรเจกต์ (Active Project)
   const projectSpecificItems = projectId ? [
     { icon: Layout, label: 'PROJECT OVERVIEW', path: `/dashboard/${projectId}` },
     { icon: CheckSquare, label: 'TASKS KANBAN', path: `/projects/${projectId}/tasks` },
@@ -41,10 +40,9 @@ const Sidebar = () => {
     { icon: BarChart3, label: 'RETRO BOARD', path: `/dashboard/${projectId}/retro` },
   ] : [];
 
-  // 3. เมนูจัดการระบบ
-  const systemItems = [
+  // 3. เมนู Admin (คงไว้ในส่วนล่างสุด)
+  const adminItems = [
     { icon: Shield, label: 'ADMIN PANEL', path: '/admin' },
-    { icon: Settings, label: 'SETTINGS', path: '/settings' },
   ];
 
   const isPathActive = (path) => {
@@ -97,7 +95,7 @@ const Sidebar = () => {
         {/* MENU CONTENT */}
         <div className="flex-1 space-y-8 overflow-y-auto scrollbar-hide px-2">
           
-          {/* CORE SYSTEM MENU */}
+          {/* CORE NAVIGATOR */}
           <nav className="space-y-1">
             {!isCollapsed && (
               <p className="text-[10px] font-black text-gray-600 mb-3 px-4 tracking-[0.2em] uppercase">Navigator</p>
@@ -105,7 +103,7 @@ const Sidebar = () => {
             {coreItems.map(renderMenuItem)}
           </nav>
 
-          {/* ACTIVE PROJECT MENU - แสดงเมื่อเข้าโปรเจกต์ใดโปรเจกต์หนึ่ง */}
+          {/* ACTIVE PROJECT - แสดงเมื่อเลือกโปรเจกต์ */}
           {projectId && (
             <nav className="space-y-1 pt-4 border-t border-white/5 animate-in fade-in slide-in-from-left-4 duration-500">
               {!isCollapsed && (
@@ -118,12 +116,9 @@ const Sidebar = () => {
             </nav>
           )}
 
-          {/* SETTINGS & ADMIN */}
+          {/* ADMIN SECTION */}
           <nav className="space-y-1 pt-4 border-t border-white/5">
-            {!isCollapsed && (
-              <p className="text-[10px] font-black text-gray-600 mb-3 px-4 tracking-[0.2em] uppercase">Management</p>
-            )}
-            {systemItems.map(renderMenuItem)}
+            {adminItems.map(renderMenuItem)}
           </nav>
         </div>
 

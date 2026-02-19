@@ -39,7 +39,7 @@ const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
   if (loading) return null;
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to="/projects" replace />;
 
   return children;
 };
@@ -321,8 +321,8 @@ function AppRoutes() {
         />
 
         {/* Default */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Navigate to="/projects" replace />} />
+        <Route path="*" element={<Navigate to="/projects" replace />} />
       </Routes>
     </BrowserRouter>
   );
