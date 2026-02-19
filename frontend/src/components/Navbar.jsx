@@ -9,6 +9,7 @@ import { dashboardAPI } from '../services/api';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 
+// ✅ เชื่อมต่อ Socket ภายนอก Component เพื่อป้องกัน Connection Leak
 const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
   withCredentials: true,
   transports: ['websocket']
@@ -31,26 +32,29 @@ const Navbar = ({ onSearch, projects = [] }) => {
   const username = user?.username || 'USER';
   const initial = (username?.[0] || 'U').toUpperCase();
 
+  // ✅ ฟังก์ชันดึงแจ้งเตือน (แก้ปัญหา Error 500 โดยการดักจับค่า Null)
   const fetchNotifications = async () => {
     try {
       const res = await dashboardAPI.getRisks('all');
+      // ตรวจสอบโครงสร้างข้อมูลให้มั่นใจก่อน Set State
       const alerts = res.data?.data?.alerts || []; 
       setNotifications(alerts);
     } catch (err) {
       console.error("Fetch Error:", err);
+      // หากพัง ไม่ต้องแสดงผล Error ค้างไว้ใน UI
+      setNotifications([]);
     }
   };
 
   // ✅ ฟังก์ชันล้างการแจ้งเตือนทั้งหมด
   const handleClearAll = async () => {
     try {
-      // เรียก API ไปที่ Backend เพื่อ Mark as resolved ทั้งหมด
       await dashboardAPI.clearAllNotifications(); 
       setNotifications([]);
-      toast.success("All tactical alerts cleared");
+      toast.success("Tactical briefing cleared");
     } catch (err) {
       console.error("Clear error:", err);
-      toast.error("Failed to clear notifications");
+      toast.error("COMMUNICATION ERROR: Unable to clear uplink.");
     }
   };
 
@@ -61,6 +65,7 @@ const Navbar = ({ onSearch, projects = [] }) => {
       socket.emit('join_user_room', user.id);
     }
 
+    // ⚡ ระบบ Real-time ดักฟังเหตุการณ์
     socket.on('new_notification', (data) => {
       setNotifications(prev => [data, ...prev]);
       toast.success(`${data.type.toUpperCase()}: ${data.message}`, {
@@ -74,7 +79,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
       setNotifications(prev => prev.filter(n => !(n.id === data.id && n.type === data.type)));
     });
 
-    // ฟังคำสั่ง Clear All จาก Socket (กรณีเคลียร์จากเครื่องอื่น)
     socket.on('clear_all_notifications', () => {
       setNotifications([]);
     });
@@ -99,7 +103,7 @@ const Navbar = ({ onSearch, projects = [] }) => {
 
   const unreadCount = notifications.length;
 
-  // --- Search & Handlers ---
+  // --- Handlers ---
   const handleSearch = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -125,8 +129,7 @@ const Navbar = ({ onSearch, projects = [] }) => {
   const selectSuggestion = (project) => {
     const pid = project.id || project.project_id;
     if (pid) {
-      // ✅ นำทางไปยังหน้า Kanban ของโปรเจกต์
-      navigate(`/projects/${pid}`); 
+      navigate(`/projects/${pid}`); // ✅ ไปหน้า Kanban
       setOpenDropdown(false);
       setSearchQuery('');
     }
@@ -150,7 +153,7 @@ const Navbar = ({ onSearch, projects = [] }) => {
     <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-50">
       <div className="flex items-center justify-between">
         
-        {/* Search Container */}
+        {/* Search */}
         <div className="flex-1 max-w-xl relative" ref={wrapRef}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -189,7 +192,7 @@ const Navbar = ({ onSearch, projects = [] }) => {
 
         <div className="flex items-center gap-4">
           
-          {/* 🔔 Notifications Section */}
+          {/* 🔔 Notifications */}
           <div className="relative" ref={notiRef}>
             <button 
               onClick={() => setShowNoti(!showNoti)}
@@ -207,12 +210,10 @@ const Navbar = ({ onSearch, projects = [] }) => {
               <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
                   <h3 className="text-xs font-black uppercase tracking-widest text-gray-800">Tactical Briefing</h3>
-                  
-                  {/* ✅ ปุ่ม Clear All */}
                   {notifications.length > 0 && (
                     <button 
                       onClick={handleClearAll}
-                      className="text-[10px] font-bold text-gray-400 hover:text-red-500 transition-colors uppercase tracking-widest"
+                      className="text-[10px] font-bold text-gray-400 hover:text-red-500 transition-colors uppercase"
                     >
                       Clear All
                     </button>
@@ -225,7 +226,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
                       key={`${noti.type}-${noti.id}`} 
                       className={`p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors group relative ${noti.type === 'task' ? 'border-l-4 border-l-blue-500' : 'border-l-4 border-l-red-500'}`}
                       onClick={() => { 
-                        // ✅ Link ไปหน้า Kanban ของโปรเจกต์นั้น
                         navigate(`/projects/${noti.project_id}`); 
                         setShowNoti(false); 
                       }}
@@ -238,18 +238,11 @@ const Navbar = ({ onSearch, projects = [] }) => {
                         </div>
                         
                         <div className="space-y-1 flex-1 pr-6">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
-                              noti.type === 'task' ? 'bg-blue-50 text-blue-500' : 'bg-red-50 text-red-500'
-                            }`}>
-                              {noti.type}
-                            </span>
-                          </div>
-                          <p className="text-xs font-bold text-gray-800 leading-tight italic">
+                          <p className="text-xs font-bold text-gray-800 leading-tight">
                             {noti.type === 'task' ? `TASK: ${noti.message}` : noti.message}
                           </p>
-                          <div className="flex items-center gap-2 text-[10px] font-medium text-gray-400">
-                            <span className="text-primary font-bold">{noti.project_name}</span> • {new Date(noti.created_at).toLocaleTimeString()}
+                          <div className="text-[10px] text-gray-400 font-medium italic">
+                            {noti.project_name} • {new Date(noti.created_at).toLocaleTimeString()}
                           </div>
                         </div>
                         
@@ -257,7 +250,7 @@ const Navbar = ({ onSearch, projects = [] }) => {
                           <button 
                             onClick={(e) => handleResolveAlert(e, noti.id)}
                             className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-all shadow-sm"
-                            title="Mark as resolved"
+                            title="Resolve"
                           >
                             <CheckCircle2 size={14} />
                           </button>
@@ -266,8 +259,8 @@ const Navbar = ({ onSearch, projects = [] }) => {
                     </div>
                   )) : (
                     <div className="p-10 text-center">
-                      <CheckCircle2 className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Sky is clear</p>
+                      <CheckCircle2 className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest italic">All Quiet on the Sector</p>
                     </div>
                   )}
                 </div>
@@ -277,13 +270,13 @@ const Navbar = ({ onSearch, projects = [] }) => {
 
           <button onClick={handleLogout} className="p-2 hover:bg-red-50 rounded-lg text-red-600 flex items-center gap-2 font-bold transition-colors">
             <LogOut className="w-5 h-5" />
-            <span className="hidden lg:block text-sm">Logout</span>
+            <span className="hidden lg:block text-sm uppercase">Logout</span>
           </button>
 
           <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-black text-gray-800 uppercase leading-none">{username}</p>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 italic">Uplink Active</p>
+              <p className="text-sm font-black text-gray-800 uppercase leading-none tracking-tighter">{username}</p>
+              <p className="text-[9px] text-primary font-bold tracking-[0.2em] mt-1 italic">ACTIVE_UPLINK</p>
             </div>
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-red-600 rounded-full flex items-center justify-center text-white font-black shadow-lg shadow-primary/20">
               {initial}

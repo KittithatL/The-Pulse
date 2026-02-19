@@ -9,8 +9,9 @@ import Register from './pages/Register';
 import ProjectTasks from './pages/ProjectTask';
 import MyTasks from './pages/Mytasks';
 import Dashboard from './pages/Dashboard';
-// ✅ 1. Import หน้า RiskSentinel เข้ามา
 import RiskSentinel from './pages/RiskSentinel'; 
+// ✅ 1. Import หน้า MyDays เข้ามา
+import MyDays from './pages/MyDays'; 
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -19,10 +20,10 @@ const ProtectedRoute = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0c0f]">
         <div className="text-center">
           <div className="w-14 h-14 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Checking session...</p>
+          <p className="mt-4 text-gray-400 font-bold uppercase tracking-widest">Initialising Uplink...</p>
         </div>
       </div>
     );
@@ -63,12 +64,13 @@ function AppRoutes() {
         toastOptions={{
           duration: 3000,
           style: {
-            background: '#1E293B',
+            background: '#1a1d20',
             color: '#fff',
+            border: '1px solid rgba(255,255,255,0.05)'
           },
           success: {
             iconTheme: {
-              primary: '#EF4444',
+              primary: '#EF4444', // สีแดง Primary ของ The Pulse
               secondary: '#fff',
             },
           },
@@ -76,25 +78,11 @@ function AppRoutes() {
       />
 
       <Routes>
-        {/* Public */}
-        <Route
-          path="/login"
-          element={
-            <PublicOnlyRoute>
-              <Login />
-            </PublicOnlyRoute>
-          }
-        />
-        <Route
-          path="/register"
-          element={
-            <PublicOnlyRoute>
-              <Register />
-            </PublicOnlyRoute>
-          }
-        />
+        {/* Public Routes */}
+        <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+        <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
 
-        {/* Protected */}
+        {/* Protected Routes */}
         <Route
           path="/projects"
           element={
@@ -106,7 +94,6 @@ function AppRoutes() {
           }
         />
 
-        {/* ✅ Project Tasks */}
         <Route
           path="/projects/:projectId/tasks"
           element={
@@ -118,9 +105,8 @@ function AppRoutes() {
           }
         />
 
-        {/* ✅ Dashboard (Entry Point: จะ Auto-redirect ไปหา Project แรก) */}
         <Route
-          path="/dashboard"
+          path="/dashboard/:projectId"
           element={
             <ProtectedRoute>
               <Layout onSearch={handleSearch}>
@@ -130,13 +116,12 @@ function AppRoutes() {
           }
         />
 
-        {/* ✅ Dashboard Specific Project (แสดงผลจริง) */}
         <Route
-          path="/dashboard/:projectId"
+          path="/dashboard/:projectId/risk-sentinel"
           element={
             <ProtectedRoute>
               <Layout onSearch={handleSearch}>
-                <Dashboard />
+                <RiskSentinel />
               </Layout>
             </ProtectedRoute>
           }
@@ -153,176 +138,25 @@ function AppRoutes() {
           }
         />
 
-        {/* ✅ Risk Sentinel (แทนที่อันเก่า และใส่ projectId) */}
-        <Route
-          path="/dashboard/:projectId/risk-sentinel"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <RiskSentinel />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* --- Placeholders --- */}
+        {/* ✅ 2. เปลี่ยนจาก Placeholder เป็นหน้า MyDays จริง */}
         <Route
           path="/my-days"
           element={
             <ProtectedRoute>
               <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">My Day</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
+                <MyDays />
               </Layout>
             </ProtectedRoute>
           }
         />
 
-        <Route
-          path="/project-flow"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Project Flow</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/retro-board"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Retro Board</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/financial-hub"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Financial Hub</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/payroll"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Payroll</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/project-chat"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Project Chat</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/decision-hub"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Decision Hub</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/skill-matrix"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Skill Matrix</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/culture-feedback"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Culture Feedback</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/architecture"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Architecture</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <div className="text-center py-20">
-                  <h1 className="text-4xl font-bold text-gray-800">Admin</h1>
-                  <p className="text-gray-600 mt-4">Coming soon...</p>
-                </div>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Default */}
-        <Route path="/" element={<Navigate to="/projects" replace />} />
-        <Route path="*" element={<Navigate to="/projects" replace />} />
+        {/* --- Placeholders สำหรับฟีเจอร์ในอนาคต --- */}
+        <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-center py-20 text-gray-500">Admin Panel Under Construction</div></Layout></ProtectedRoute>} />
+        
+        {/* Default Redirects */}
+        <Route path="/" element={<Navigate to="/my-days" replace />} />
+        <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
+        <Route path="*" element={<Navigate to="/my-days" replace />} />
       </Routes>
     </BrowserRouter>
   );
