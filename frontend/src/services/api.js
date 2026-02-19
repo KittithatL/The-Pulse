@@ -9,7 +9,6 @@ const api = axios.create({
   },
 });
 
-// ✅ Interceptor: แนบ Token อัตโนมัติ
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -21,7 +20,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ✅ Interceptor: ดักจับ Error 401
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -33,7 +31,6 @@ api.interceptors.response.use(
   }
 );
 
-// ✅ 1. Project API
 export const projectAPI = {
   getProjects: () => api.get('/projects'),
   getProject: (id) => api.get(`/projects/${id}`),
@@ -46,27 +43,19 @@ export const projectAPI = {
   removeMember: (projectId, userId) => api.delete(`/projects/${projectId}/members/${userId}`),
 };
 
-// ✅ 2. Task API
 export const taskAPI = {
   getTasks: (projectId, params) => api.get(`/projects/${projectId}/tasks`, { params }),
   createTask: (projectId, data) => api.post(`/projects/${projectId}/tasks`, data),
-  
-  // ✅ ตรวจสอบให้แน่ใจว่าเป็น /tasks (ตรงกับที่แก้ใน server.js)
   updateTask: (id, data) => api.put(`/tasks/${id}`, data), 
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   updateTaskStatus: (id, status) => api.put(`/tasks/${id}`, { status }),
-  
-  // ✅ ต้องเป็น /tasks/my-tasks (มี s)
   getMyTasks: () => api.get('/tasks/my-tasks'), 
 
   getMessages: (taskId) => api.get(`/tasks/${taskId}/messages`),
   sendMessage: (taskId, message) => api.post(`/tasks/${taskId}/messages`, { message }),
-  
-  // ✅ ต้องเป็น /tasks/messages/...
   deleteMessage: (messageId) => api.delete(`/tasks/messages/${messageId}`), 
 };
 
-// ✅ 3. Dashboard API
 export const dashboardAPI = {
   getOverview: (projectId) => api.get(`/dashboard/${projectId}/overview`),
   getInfrastructure: (projectId) => api.get(`/dashboard/${projectId}/infrastructure`),
@@ -85,11 +74,27 @@ export const dashboardAPI = {
   getRiskSentinel: (projectId) => api.get(`/dashboard/${projectId}/risk-sentinel`),
 };
 
-// ✅ 4. Auth API
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getCurrentUser: () => api.get('/auth/me'),
+};
+
+export const financialAPI = {
+  getOverview:    (projectId) => api.get(`/projects/${projectId}/finance/overview`),
+  adjustBudget:   (projectId, data) => api.put(`/projects/${projectId}/finance/budget`, data),
+  getForecast:    (projectId) => api.get(`/projects/${projectId}/finance/forecast`),
+  
+  getRequests:    (projectId, status) => api.get(`/projects/${projectId}/finance/requests`, { params: status ? { status } : {} }),
+  createRequest:  (projectId, data) => api.post(`/projects/${projectId}/finance/requests`, data),
+  approveRequest: (projectId, requestId, data) => api.patch(`/projects/${projectId}/finance/requests/${requestId}/approve`, data),
+  rejectRequest:  (projectId, requestId, data) => api.patch(`/projects/${projectId}/finance/requests/${requestId}/reject`, data),
+  
+  getDisbursements:        (projectId) => api.get(`/projects/${projectId}/finance/disbursements`),
+  updateDisbursement:      (projectId, id, data) => api.patch(`/projects/${projectId}/finance/disbursements/${id}/status`, data),
+  approveAllDisbursements:(projectId) => api.post(`/projects/${projectId}/finance/disbursements/approve-all`),
+  
+  getAuditLog: (projectId) => api.get(`/projects/${projectId}/finance/audit`),
 };
 
 export default api;

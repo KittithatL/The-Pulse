@@ -10,8 +10,8 @@ import ProjectTasks from './pages/ProjectTask';
 import MyTasks from './pages/Mytasks';
 import Dashboard from './pages/Dashboard';
 import RiskSentinel from './pages/RiskSentinel'; 
-// ✅ 1. Import หน้า MyDays เข้ามา
 import MyDays from './pages/MyDays'; 
+import FinancialHub from './pages/FinancialHub';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -70,7 +70,7 @@ function AppRoutes() {
           },
           success: {
             iconTheme: {
-              primary: '#EF4444', // สีแดง Primary ของ The Pulse
+              primary: '#EF4444',
               secondary: '#fff',
             },
           },
@@ -78,11 +78,9 @@ function AppRoutes() {
       />
 
       <Routes>
-        {/* Public Routes */}
         <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
         <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
 
-        {/* Protected Routes */}
         <Route
           path="/projects"
           element={
@@ -138,7 +136,6 @@ function AppRoutes() {
           }
         />
 
-        {/* ✅ 2. เปลี่ยนจาก Placeholder เป็นหน้า MyDays จริง */}
         <Route
           path="/my-days"
           element={
@@ -150,10 +147,19 @@ function AppRoutes() {
           }
         />
 
-        {/* --- Placeholders สำหรับฟีเจอร์ในอนาคต --- */}
+        <Route
+          path="/dashboard/:projectId/finance"
+          element={
+            <ProtectedRoute>
+              <Layout onSearch={handleSearch}>
+                <FinancialHub />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-center py-20 text-gray-500">Admin Panel Under Construction</div></Layout></ProtectedRoute>} />
         
-        {/* Default Redirects */}
         <Route path="/" element={<Navigate to="/my-days" replace />} />
         <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
         <Route path="*" element={<Navigate to="/my-days" replace />} />
