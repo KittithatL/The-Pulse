@@ -25,7 +25,7 @@ const Sidebar = () => {
     { icon: Calendar, label: 'MY DAY', path: '/my-days' },
   ];
 
-  // 2. เมนูเฉพาะโปรเจกต์ (Active Project) - ตัด Flow, Chat และ Retro ออกแล้ว
+  // 2. เมนูเฉพาะโปรเจกต์ (Active Project)
   const projectSpecificItems = projectId ? [
     { icon: Layout, label: 'PROJECT OVERVIEW', path: `/dashboard/${projectId}` },
     { icon: CheckSquare, label: 'TASKS KANBAN', path: `/projects/${projectId}/tasks` },
@@ -39,8 +39,33 @@ const Sidebar = () => {
     { icon: Shield, label: 'ADMIN PANEL', path: '/admin' },
   ];
 
-  const isPathActive = (path) => {
-    return location.pathname === path || (path !== '/' && location.pathname.startsWith(path));
+  /**
+   * ✅ ปรับปรุงฟังก์ชันการเช็ค Active Path ให้แม่นยำ 100%
+   */
+  const isPathActive = (itemPath) => {
+    const currentPath = location.pathname;
+
+    // A. กรณีที่ Path ตรงกันเป๊ะ (ให้ความสำคัญสูงสุด)
+    if (currentPath === itemPath) return true;
+
+    // B. แก้ไขปัญหาเมนู ALL PROJECTS (/projects) แดงซ้อนกับ Kanban
+    // ถ้าเมนูคือ /projects เราจะให้แดงเฉพาะเมื่ออยู่ที่หน้ารวมโครงการจริงๆ เท่านั้น
+    if (itemPath === '/projects') {
+      return currentPath === '/projects';
+    }
+
+    // C. สำหรับ Dashboard Overview (ป้องกันมันแดงทับเมนูย่อยอื่นๆ ใน dashboard)
+    if (itemPath.includes('/dashboard/') && 
+        !itemPath.includes('risk-sentinel') && 
+        !itemPath.includes('finance') && 
+        !itemPath.includes('decisions')) {
+        // แดงเฉพาะเมื่ออยู่ที่หน้า dashboard/id หรือ dashboard/id/overview เท่านั้น
+        return currentPath === itemPath || currentPath === `${itemPath}/overview`;
+    }
+
+    // D. สำหรับเมนูย่อยที่มีความเฉพาะเจาะจง (เช่น /projects/8/tasks)
+    // ใช้ startsWith ได้ เพราะ path มีความยาวและเจาะจงพอ
+    return currentPath.startsWith(itemPath);
   };
 
   const renderMenuItem = (item, index) => {
@@ -125,6 +150,7 @@ const Sidebar = () => {
         </button>
       </div>
 
+      {/* Spacer สำหรับป้องกัน Content โดน Sidebar ทับ */}
       <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`} />
 
       <style>{`

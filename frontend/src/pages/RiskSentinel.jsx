@@ -62,7 +62,7 @@ const RiskSentinel = () => {
           </div>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-8">HOVER POINTS TO VIEW THREATS</p>
 
-          <div className="relative w-full aspect-square max-h-[450px] border-l-4 border-b-4 border-slate-900 bg-slate-50 rounded-tr-3xl relative p-4 mb-8">
+          <div className="w-full aspect-square max-h-[450px] border-l-4 border-b-4 border-slate-900 bg-slate-50 rounded-tr-3xl relative p-4 mb-8">
             <div className="absolute -left-12 top-1/2 -translate-y-1/2 -rotate-90 text-[10px] font-black tracking-widest uppercase text-slate-400">IMPACT</div>
             <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-[10px] font-black tracking-widest uppercase text-slate-400">LIKELIHOOD</div>
 
