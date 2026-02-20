@@ -13,7 +13,6 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const taskRoutes = require('./routes/taskRoutes');
-const myTaskRoutes = require("./routes/myTaskRoutes");
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const financialRoutes = require('./routes/financialRoutes');
 
@@ -58,7 +57,6 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
-app.use('/api/myTasks', myTaskRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/projects/:projectId/finance', financialRoutes);
 

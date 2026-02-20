@@ -165,6 +165,7 @@ const createProject = async (req, res) => {
 const updateProject = async (req, res) => {
   try {
     const { projectId } = req.params;
+    console.log("🔍 req.body:", req.body);
     const { title, description, deadline, learning_capacity } = req.body;
     const userId = req.user.id;
 

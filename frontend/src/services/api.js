@@ -49,7 +49,10 @@ export const taskAPI = {
   updateTask: (id, data) => api.put(`/tasks/${id}`, data), 
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   updateTaskStatus: (id, status) => api.put(`/tasks/${id}`, { status }),
-  getMyTasks: () => api.get('/tasks/my-tasks'), 
+  getMyTasks: () => api.get('/tasks/my-tasks', {
+    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+    params: { _t: Date.now() }
+  }),
 
   getMessages: (taskId) => api.get(`/tasks/${taskId}/messages`),
   sendMessage: (taskId, message) => api.post(`/tasks/${taskId}/messages`, { message }),
