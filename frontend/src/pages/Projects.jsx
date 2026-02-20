@@ -30,7 +30,7 @@ const Projects = ({ searchQuery = '' }) => {
   const [editForm, setEditForm] = useState({
     title: '',
     description: '',
-    end_at: '',
+    deadline: '',
   });
 
   const [memberForm, setMemberForm] = useState({
@@ -162,7 +162,7 @@ const Projects = ({ searchQuery = '' }) => {
     setEditForm({
       title: project.title || '',
       description: project.description || '',
-      end_at: project.end_at ? format(new Date(project.end_at), 'yyyy-MM-dd') : '',
+      deadline: project.end_at ? format(new Date(project.end_at), 'yyyy-MM-dd') : '',
     });
     setShowEditModal(true);
   };
@@ -405,8 +405,8 @@ const Projects = ({ searchQuery = '' }) => {
                 <label className="block text-xs font-semibold text-gray-500 mb-2">END DATE</label>
                 <input
                   type="date"
-                  value={editForm.end_at}
-                  onChange={(e) => setEditForm({ ...editForm, end_at: e.target.value })}
+                  value={editForm.deadline}
+                  onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
