@@ -16,6 +16,7 @@ const taskRoutes = require('./routes/taskRoutes');
 const myTaskRoutes = require("./routes/myTaskRoutes");
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const financialRoutes = require('./routes/financialRoutes');
+const decisionRoutes = require('./routes/decisionRoutes'); // ✅ เพิ่มบรรทัดนี้
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
@@ -55,12 +56,14 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ✅ ROUTES
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/projects/:projectId/decisions', decisionRoutes); // ✅ เพิ่มตรงนี้
+app.use('/api/projects/:projectId/finance', financialRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/myTasks', myTaskRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/projects/:projectId/finance', financialRoutes);
 
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -90,15 +93,10 @@ const start = async () => {
     server.listen(PORT, () => {
       console.log(`
 ╔══════════════════════════════════════════════════════════╗
-║                                                          ║
 ║          🚀 THE PULSE COMMAND CENTER ONLINE 🚀           ║
-║                                                          ║
 ║   Port: ${PORT}                                          ║
 ║   Database: ✅ CONNECTED                                 ║
-║   WebSockets: ⚡ ENABLED (Socket.io)                     ║
-║   Environment: ${process.env.NODE_ENV || 'development'}  ║
-║   Time: ${new Date().toLocaleString()}                   ║
-║                                                          ║
+║   WebSockets: ⚡ ENABLED                                  ║
 ╚══════════════════════════════════════════════════════════╝
       `);
     });

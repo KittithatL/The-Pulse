@@ -10,8 +10,10 @@ import ProjectTasks from './pages/ProjectTask';
 import MyTasks from './pages/Mytasks';
 import Dashboard from './pages/Dashboard';
 import RiskSentinel from './pages/RiskSentinel'; 
+
 import MyDays from './pages/MyDays'; 
 import FinancialHub from './pages/FinancialHub';
+import DecisionHub from './pages/DecisionHub';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -70,7 +72,7 @@ function AppRoutes() {
           },
           success: {
             iconTheme: {
-              primary: '#EF4444',
+              primary: '#EF4444',  
               secondary: '#fff',
             },
           },
@@ -78,9 +80,11 @@ function AppRoutes() {
       />
 
       <Routes>
+       
         <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
         <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
 
+      
         <Route
           path="/projects"
           element={
@@ -136,6 +140,7 @@ function AppRoutes() {
           }
         />
 
+       
         <Route
           path="/my-days"
           element={
@@ -158,8 +163,21 @@ function AppRoutes() {
           }
         />
 
+        <Route
+          path="/dashboard/:projectId/decisions"
+          element={
+            <ProtectedRoute>
+              <Layout onSearch={handleSearch}>
+                <DecisionHub />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+
+       
         <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-center py-20 text-gray-500">Admin Panel Under Construction</div></Layout></ProtectedRoute>} />
         
+      
         <Route path="/" element={<Navigate to="/my-days" replace />} />
         <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
         <Route path="*" element={<Navigate to="/my-days" replace />} />
