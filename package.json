@@ -17,5 +17,10 @@
   "bugs": {
     "url": "https://github.com/KittithatL/The-Pulse/issues"
   },
-  "homepage": "https://github.com/KittithatL/The-Pulse#readme"
+  "homepage": "https://github.com/KittithatL/The-Pulse#readme",
+  "devDependencies": {
+    "autoprefixer": "^10.4.24",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.2.1"
+  }
 }
