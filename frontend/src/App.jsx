@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard';
 import RiskSentinel from './pages/RiskSentinel'; 
 import MyDays from './pages/MyDays'; 
 import FinancialHub from './pages/FinancialHub';
+import AdminPanel from './pages/AdminPanel.jsx';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
@@ -158,7 +159,16 @@ function AppRoutes() {
           }
         />
 
-        <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-center py-20 text-gray-500">Admin Panel Under Construction</div></Layout></ProtectedRoute>} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Layout onSearch={handleSearch}>
+                <AdminPanel />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
         
         <Route path="/" element={<Navigate to="/my-days" replace />} />
         <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
