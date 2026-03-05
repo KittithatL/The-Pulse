@@ -11,17 +11,12 @@ function parseIdList(raw) {
 }
 
 const requireAdmin = (req, res, next) => {
-  const allowlist = parseIdList(process.env.ADMIN_USER_IDS);
-  if (allowlist.length === 0) return next(); // allow all if not configured
-
-  const uid = req.user?.id;
-  if (!isValidInt(uid) || !allowlist.includes(Number(uid))) {
+  if (req.user?.role !== 'admin') {
     return res.status(403).json({
       success: false,
       message: 'Admin access required',
     });
   }
-
   return next();
 };
 

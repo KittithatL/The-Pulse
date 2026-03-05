@@ -16,6 +16,14 @@ import AdminPanel from './pages/AdminPanel.jsx';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
+const AdminRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  console.log('AdminRoute user:', user);
+  if (user?.role !== 'admin') return <Navigate to="/projects" replace />;
+  return children;
+};
+
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
 
@@ -162,11 +170,11 @@ function AppRoutes() {
         <Route
           path="/admin"
           element={
-            <ProtectedRoute>
+            <AdminRoute> 
               <Layout onSearch={handleSearch}>
                 <AdminPanel />
               </Layout>
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         
