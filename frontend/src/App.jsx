@@ -10,8 +10,10 @@ import ProjectTasks from './pages/ProjectTask';
 import MyTasks from './pages/Mytasks';
 import Dashboard from './pages/Dashboard';
 import RiskSentinel from './pages/RiskSentinel'; 
+
 import MyDays from './pages/MyDays'; 
 import FinancialHub from './pages/FinancialHub';
+import DecisionHub from './pages/DecisionHub';
 import AdminPanel from './pages/AdminPanel.jsx';
 import ProjectSettings from './pages/ProjectSettings';
 
