@@ -19,6 +19,7 @@ const MyTasks = ({ searchQuery = '' }) => {
     try {
       setLoading(true);
       const response = await taskAPI.getMyTasks();
+      console.log("RAW DATA FROM API:", response.data.data.tasks);
       if (response.data?.data?.tasks) {
         setTasks(response.data.data.tasks);
       }
@@ -30,25 +31,44 @@ const MyTasks = ({ searchQuery = '' }) => {
     }
   };
 
-  // Logic การแบ่งกลุ่มตามเวลาและสถานะ
+  // ✅ Logic การแบ่งกลุ่มแบบใหม่: แม่นยำและรองรับความผิดพลาดของ String
   const groupedTasks = useMemo(() => {
     const now = startOfDay(new Date());
     
-    // 1. Filter ขั้นต้น (Search + Tab Filter)
-    let filtered = tasks.filter(t => {
-      const matchSearch = (t.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (t.project_title || '').toLowerCase().includes(searchQuery.toLowerCase());
-      const matchStatus = filterStatus === 'all' || t.status === filterStatus;
-      return matchSearch && matchStatus;
+    // 1. กรองขั้นต้นด้วย Search และ Tab Filter
+    const filtered = tasks.filter(t => {
+      const s = String(t.status || '').toLowerCase().trim(); // เพิ่ม normalize
+      const matchStatus = filterStatus === 'all' || s === filterStatus;
+      return matchStatus;
     });
 
-    // 2. แยกกลุ่ม
-    return {
-      overdue: filtered.filter(t => t.status !== 'done' && t.deadline && isBefore(new Date(t.deadline), now)),
-      today: filtered.filter(t => t.status !== 'done' && t.deadline && isToday(new Date(t.deadline))),
-      active: filtered.filter(t => t.status !== 'done' && (!t.deadline || (!isBefore(new Date(t.deadline), now) && !isToday(new Date(t.deadline))))),
-      completed: filtered.filter(t => t.status === 'done')
+    // 2. แยกกลุ่มโดยใช้สถานะที่ Normalize แล้ว
+    const groups = {
+      overdue: [],
+      today: [],
+      active: [],
+      completed: []
     };
+
+    filtered.forEach(t => {
+      const s = String(t.status || '').toLowerCase().trim();
+      
+      if (s === 'done') {
+        groups.completed.push(t);
+      } else {
+        const deadlineDate = t.deadline ? new Date(t.deadline) : null;
+        
+        if (deadlineDate && isBefore(deadlineDate, now)) {
+          groups.overdue.push(t);
+        } else if (deadlineDate && isToday(deadlineDate)) {
+          groups.today.push(t);
+        } else {
+          groups.active.push(t);
+        }
+      }
+    });
+
+    return groups;
   }, [tasks, searchQuery, filterStatus]);
 
   if (loading) {
@@ -63,48 +83,52 @@ const MyTasks = ({ searchQuery = '' }) => {
   }
 
   // Helper Component สำหรับแสดง Card
-  const TaskCard = ({ task, variant = 'default' }) => (
-    <div className={`bg-white rounded-2xl shadow-md border-l-4 overflow-hidden hover:shadow-xl transition-all group ${
-      variant === 'danger' ? 'border-red-500' : 
-      variant === 'warning' ? 'border-orange-500' : 
-      variant === 'success' ? 'border-green-500' : 'border-gray-200'
-    }`}>
-      <div className="bg-gray-900 text-white px-4 py-1.5 text-[10px] font-black flex justify-between items-center tracking-widest">
-        <span className="truncate mr-2">PRJ // {task.project_title}</span>
-        <span className={`px-2 py-0.5 rounded ${
-          task.status === 'done' ? 'bg-green-600' : 
-          task.status === 'doing' ? 'bg-blue-600' : 'bg-gray-600'
-        }`}>
-          {task.status?.toUpperCase()}
-        </span>
-      </div>
+  const TaskCard = ({ task, variant = 'default' }) => {
+    const currentStatus = String(task.status || '').toLowerCase().trim();
+    
+    return (
+      <div className={`bg-white rounded-2xl shadow-md border-l-4 overflow-hidden hover:shadow-xl transition-all group ${
+        variant === 'danger' ? 'border-red-500' : 
+        variant === 'warning' ? 'border-orange-500' : 
+        variant === 'success' ? 'border-green-500' : 'border-gray-200'
+      }`}>
+        <div className="bg-gray-900 text-white px-4 py-1.5 text-[10px] font-black flex justify-between items-center tracking-widest">
+          <span className="truncate mr-2 uppercase">PRJ // {task.project_title}</span>
+          <span className={`px-2 py-0.5 rounded ${
+            currentStatus === 'done' ? 'bg-green-600' : 
+            currentStatus === 'doing' ? 'bg-blue-600' : 'bg-gray-600'
+          }`}>
+            {currentStatus.toUpperCase()}
+          </span>
+        </div>
 
-      <div className="p-5">
-        <h3 className="text-lg font-black text-gray-800 mb-2 leading-tight group-hover:text-primary transition-colors line-clamp-1">
-          {task.title}
-        </h3>
-        <p className="text-xs text-gray-500 italic mb-4 line-clamp-2 h-8">
-          {task.description || 'No briefing provided.'}
-        </p>
+        <div className="p-5">
+          <h3 className="text-lg font-black text-gray-800 mb-2 leading-tight group-hover:text-primary transition-colors line-clamp-1">
+            {task.title}
+          </h3>
+          <p className="text-xs text-gray-500 italic mb-4 line-clamp-2 h-8">
+            {task.description || 'No briefing provided.'}
+          </p>
 
-        <div className="space-y-2 mb-4">
-          <div className={`flex items-center gap-2 text-[11px] font-bold ${variant === 'danger' ? 'text-red-500' : 'text-gray-400'}`}>
-            <Calendar className="w-3.5 h-3.5" />
-            <span>DEADLINE: {task.deadline ? format(new Date(task.deadline), 'dd MMM yyyy') : 'OPEN'}</span>
+          <div className="space-y-2 mb-4">
+            <div className={`flex items-center gap-2 text-[11px] font-bold ${variant === 'danger' ? 'text-red-500' : 'text-gray-400'}`}>
+              <Calendar className="w-3.5 h-3.5" />
+              <span>DEADLINE: {task.deadline ? format(new Date(task.deadline), 'dd MMM yyyy') : 'OPEN'}</span>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-gray-50 flex justify-end">
+            <button
+              onClick={() => navigate(`/projects/${task.project_id}/tasks`)}
+              className="flex items-center gap-1 text-[10px] font-black text-primary hover:tracking-widest transition-all"
+            >
+              GOTO PROJECT <ExternalLink className="w-3 h-3" />
+            </button>
           </div>
         </div>
-
-        <div className="pt-4 border-t border-gray-50 flex justify-end">
-          <button
-            onClick={() => navigate(`/projects/${task.project_id}/tasks`)}
-            className="flex items-center gap-1 text-[10px] font-black text-primary hover:tracking-widest transition-all"
-          >
-            GOTO PROJECT <ExternalLink className="w-3 h-3" />
-          </button>
-        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 pb-20 overflow-y-auto">
@@ -177,15 +201,17 @@ const MyTasks = ({ searchQuery = '' }) => {
               {groupedTasks.active.map(t => <TaskCard key={t.id} task={t} />)}
             </div>
           ) : (
-            <div className="py-12 border-2 border-dashed border-gray-200 rounded-3xl text-center">
-              <p className="text-gray-400 font-bold italic">NO PENDING MISSIONS IN THIS SECTOR</p>
-            </div>
+            filterStatus !== 'done' && (
+              <div className="py-12 border-2 border-dashed border-gray-200 rounded-3xl text-center">
+                <p className="text-gray-400 font-bold italic">NO PENDING MISSIONS IN THIS SECTOR</p>
+              </div>
+            )
           )}
         </section>
 
         {/* 4. COMPLETED SECTION */}
         {groupedTasks.completed.length > 0 && (
-          <section className="opacity-60 grayscale-[0.5] hover:opacity-100 transition-opacity">
+          <section className="opacity-80 hover:opacity-100 transition-opacity">
             <div className="flex items-center gap-3 mb-6">
               <div className="bg-green-500 p-2 rounded-lg text-white">
                 <CheckCircle2 className="w-5 h-5" />

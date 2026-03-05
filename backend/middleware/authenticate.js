@@ -27,7 +27,7 @@ const authenticate = async (req, res, next) => {
 
     // ✅ schema users: id, username, email, password, created_at, updated_at
     const result = await db.query(
-      'SELECT id, username, email, created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, username, email, role ,created_at, updated_at FROM users WHERE id = $1',
       [decoded.id]
     );
 

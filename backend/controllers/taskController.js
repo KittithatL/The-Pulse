@@ -310,18 +310,26 @@ const deleteTask = async (req, res) => {
 // ✅ 6. Get My Tasks (สำหรับหน้า My Day และ My Tasks)
 const getMyTasks = async (req, res) => {
     try {
-        const userId = req.user.id; 
+        const userId = req.user.id;
         const result = await pool.query(
-            `SELECT t.*, p.title as project_name 
+            `SELECT 
+                t.id,
+                t.title,
+                t.description,
+                t.status,
+                t.deadline,
+                t.project_id,
+                p.title AS project_title
              FROM public.tasks t
              JOIN public.projects p ON t.project_id = p.id
-             WHERE t.assigned_to = $1 AND t.status != 'done'
+             WHERE t.assigned_to = $1
              ORDER BY 
-                CASE 
-                    WHEN t.priority = 'critical' THEN 1
-                    WHEN t.priority = 'high' THEN 2
-                    ELSE 3 
-                END ASC, t.deadline ASC`,
+                CASE t.status 
+                    WHEN 'doing' THEN 1 
+                    WHEN 'todo' THEN 2 
+                    WHEN 'done' THEN 3 
+                    ELSE 4
+                END, t.deadline ASC`,
             [userId]
         );
         res.json({ success: true, data: { tasks: result.rows } });

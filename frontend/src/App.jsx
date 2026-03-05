@@ -14,8 +14,17 @@ import RiskSentinel from './pages/RiskSentinel';
 import MyDays from './pages/MyDays'; 
 import FinancialHub from './pages/FinancialHub';
 import DecisionHub from './pages/DecisionHub';
+import AdminPanel from './pages/AdminPanel.jsx';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
+
+const AdminRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  console.log('AdminRoute user:', user);
+  if (user?.role !== 'admin') return <Navigate to="/projects" replace />;
+  return children;
+};
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -176,6 +185,15 @@ function AppRoutes() {
 
        
         <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-center py-20 text-gray-500">Admin Panel Under Construction</div></Layout></ProtectedRoute>} />
+          path="/admin"
+          element={
+            <AdminRoute> 
+              <Layout onSearch={handleSearch}>
+                <AdminPanel />
+              </Layout>
+            </AdminRoute>
+          }
+        />
         
       
         <Route path="/" element={<Navigate to="/my-days" replace />} />

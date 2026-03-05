@@ -55,9 +55,10 @@ export const taskAPI = {
   updateTask: (id, data) => api.put(`/tasks/${id}`, data), 
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   updateTaskStatus: (id, status) => api.put(`/tasks/${id}`, { status }),
-  
-
-  getMyTasks: () => api.get('/tasks/my-tasks'), 
+  getMyTasks: () => api.get('/tasks/my-tasks', {
+    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+    params: { _t: Date.now() }
+  }),
 
   getMessages: (taskId) => api.get(`/tasks/${taskId}/messages`),
   sendMessage: (taskId, message) => api.post(`/tasks/${taskId}/messages`, { message }),
@@ -127,6 +128,13 @@ export const decisionAPI = {
   deleteComment:   (projectId, commentId) => api.delete(`/projects/${projectId}/decisions/comments/${commentId}`),
   toggleReaction:  (projectId, id, emoji) => api.post(`/projects/${projectId}/decisions/${id}/reactions`, { emoji }),
   updateStakeholders: (projectId, id, ids) => api.put(`/projects/${projectId}/decisions/${id}/stakeholders`, { stakeholder_ids: ids }),
+export const adminAPI = {
+  getMetrics: (range) => api.get('/admin/metrics', { params: range ? { range } : {} }),
+};
+
+export const systemAPI = {
+  // backend exposes /api/health as alias to /health
+  getHealth: () => api.get('/health'),
 };
 
 export default api;

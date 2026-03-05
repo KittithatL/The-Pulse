@@ -21,17 +21,8 @@ const Projects = ({ searchQuery = '' }) => {
 
   const navigate = useNavigate();
 
-  const [createForm, setCreateForm] = useState({
-    title: '',
-    description: '',
-    end_at: '',
-  });
-
-  const [editForm, setEditForm] = useState({
-    title: '',
-    description: '',
-    end_at: '',
-  });
+  const [createForm, setCreateForm] = useState({ title: '', description: '', deadline: '' });
+  const [editForm, setEditForm] = useState({ title: '', description: '', deadline: '' });
 
   const [memberForm, setMemberForm] = useState({
     emailOrUsername: '',
@@ -72,7 +63,7 @@ const Projects = ({ searchQuery = '' }) => {
       await projectAPI.createProject(createForm);
       toast.success('Project created successfully');
       setShowCreateModal(false);
-      setCreateForm({ title: '', description: '', end_at: '' });
+      setCreateForm({ title: '', description: '', deadline: '' });
       fetchProjects();
     } catch (error) {
       console.error('Create project error:', error);
@@ -162,7 +153,7 @@ const Projects = ({ searchQuery = '' }) => {
     setEditForm({
       title: project.title || '',
       description: project.description || '',
-      end_at: project.end_at ? format(new Date(project.end_at), 'yyyy-MM-dd') : '',
+      deadline: project.deadline ? format(new Date(project.deadline), 'yyyy-MM-dd') : '',
     });
     setShowEditModal(true);
   };
@@ -348,8 +339,8 @@ const Projects = ({ searchQuery = '' }) => {
                 <label className="block text-xs font-semibold text-gray-500 mb-2">END DATE</label>
                 <input
                   type="date"
-                  value={createForm.end_at}
-                  onChange={(e) => setCreateForm({ ...createForm, end_at: e.target.value })}
+                  value={createForm.deadline}
+                  onChange={(e) => setCreateForm({ ...createForm, deadline: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
@@ -405,8 +396,8 @@ const Projects = ({ searchQuery = '' }) => {
                 <label className="block text-xs font-semibold text-gray-500 mb-2">END DATE</label>
                 <input
                   type="date"
-                  value={editForm.end_at}
-                  onChange={(e) => setEditForm({ ...editForm, end_at: e.target.value })}
+                  value={editForm.deadline}
+                  onChange={(e) => setEditForm({ ...editForm, deadline: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
