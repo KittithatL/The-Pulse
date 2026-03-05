@@ -35,9 +35,12 @@ const Sidebar = () => {
   ] : [];
 
   // 3. เมนู Admin
-  const adminItems = [
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const isAdmin = currentUser?.role === 'admin';
+
+  const adminItems = isAdmin ? [
     { icon: Shield, label: 'ADMIN PANEL', path: '/admin' },
-  ];
+  ] : [];
 
   /**
    * ✅ ปรับปรุงฟังก์ชันการเช็ค Active Path ให้แม่นยำ 100%

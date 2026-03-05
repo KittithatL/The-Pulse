@@ -100,4 +100,13 @@ export const financialAPI = {
   getAuditLog: (projectId) => api.get(`/projects/${projectId}/finance/audit`),
 };
 
+export const adminAPI = {
+  getMetrics: (range) => api.get('/admin/metrics', { params: range ? { range } : {} }),
+};
+
+export const systemAPI = {
+  // backend exposes /api/health as alias to /health
+  getHealth: () => api.get('/health'),
+};
+
 export default api;
