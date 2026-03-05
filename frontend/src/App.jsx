@@ -133,6 +133,14 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        <Route path="/dashboard/:projectId/decisions" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <DecisionHub />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        
         <Route path="/my-tasks" element={
           <ProtectedRoute>
             <Layout onSearch={setSearchQuery}>

@@ -9,7 +9,6 @@ const api = axios.create({
   },
 });
 
-
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -20,7 +19,6 @@ api.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
-
 
 api.interceptors.response.use(
   (response) => response,
@@ -33,26 +31,22 @@ api.interceptors.response.use(
   }
 );
 
-
 export const projectAPI = {
   getProjects: () => api.get('/projects'),
   getProject: (id) => api.get(`/projects/${id}`),
   createProject: (data) => api.post('/projects', data),
   updateProject: (id, data) => api.put(`/projects/${id}`, data),
   deleteProject: (id) => api.delete(`/projects/${id}`),
-  
+
   getMembers: (id) => api.get(`/projects/${id}/members`),
   addMember: (id, data) => api.post(`/projects/${id}/members`, data),
   removeMember: (projectId, userId) => api.delete(`/projects/${projectId}/members/${userId}`),
 };
 
-
 export const taskAPI = {
   getTasks: (projectId, params) => api.get(`/projects/${projectId}/tasks`, { params }),
   createTask: (projectId, data) => api.post(`/projects/${projectId}/tasks`, data),
-  
-
-  updateTask: (id, data) => api.put(`/tasks/${id}`, data), 
+  updateTask: (id, data) => api.put(`/tasks/${id}`, data),
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   updateTaskStatus: (id, status) => api.put(`/tasks/${id}`, { status }),
   getMyTasks: () => api.get('/tasks/my-tasks', {
@@ -62,21 +56,18 @@ export const taskAPI = {
 
   getMessages: (taskId) => api.get(`/tasks/${taskId}/messages`),
   sendMessage: (taskId, message) => api.post(`/tasks/${taskId}/messages`, { message }),
-  
-
-  deleteMessage: (messageId) => api.delete(`/tasks/messages/${messageId}`), 
+  deleteMessage: (messageId) => api.delete(`/tasks/messages/${messageId}`),
 };
-
 
 export const dashboardAPI = {
   getOverview: (projectId) => api.get(`/dashboard/${projectId}/overview`),
   getInfrastructure: (projectId) => api.get(`/dashboard/${projectId}/infrastructure`),
-  
+
   getRisks: (projectId) => {
     if (projectId === 'all') {
-      return api.get('/dashboard/notifications/all'); 
+      return api.get('/dashboard/notifications/all');
     }
-    return api.get(`/dashboard/${projectId}/risks`); 
+    return api.get(`/dashboard/${projectId}/risks`);
   },
 
   getMyDayBriefing: () => api.get('/dashboard/my-day/briefing'),
@@ -86,36 +77,28 @@ export const dashboardAPI = {
   getRiskSentinel: (projectId) => api.get(`/dashboard/${projectId}/risk-sentinel`),
 };
 
-
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getCurrentUser: () => api.get('/auth/me'),
 };
 
-
-
 export const financialAPI = {
   getOverview:    (projectId) => api.get(`/projects/${projectId}/finance/overview`),
   adjustBudget:   (projectId, data) => api.put(`/projects/${projectId}/finance/budget`, data),
   getForecast:    (projectId) => api.get(`/projects/${projectId}/finance/forecast`),
-  
- 
+
   getRequests:    (projectId, status) => api.get(`/projects/${projectId}/finance/requests`, { params: status ? { status } : {} }),
   createRequest:  (projectId, data) => api.post(`/projects/${projectId}/finance/requests`, data),
   approveRequest: (projectId, requestId, data) => api.patch(`/projects/${projectId}/finance/requests/${requestId}/approve`, data),
   rejectRequest:  (projectId, requestId, data) => api.patch(`/projects/${projectId}/finance/requests/${requestId}/reject`, data),
-  
 
-  getDisbursements:       (projectId) => api.get(`/projects/${projectId}/finance/disbursements`),
-  updateDisbursement:     (projectId, id, data) => api.patch(`/projects/${projectId}/finance/disbursements/${id}/status`, data),
-  approveAllDisbursements:(projectId) => api.post(`/projects/${projectId}/finance/disbursements/approve-all`),
-  
+  getDisbursements:        (projectId) => api.get(`/projects/${projectId}/finance/disbursements`),
+  updateDisbursement:      (projectId, id, data) => api.patch(`/projects/${projectId}/finance/disbursements/${id}/status`, data),
+  approveAllDisbursements: (projectId) => api.post(`/projects/${projectId}/finance/disbursements/approve-all`),
 
   getAuditLog: (projectId) => api.get(`/projects/${projectId}/finance/audit`),
 };
-
-
 
 export const decisionAPI = {
   getDecisions:    (projectId, params) => api.get(`/projects/${projectId}/decisions`, { params }),
@@ -128,6 +111,8 @@ export const decisionAPI = {
   deleteComment:   (projectId, commentId) => api.delete(`/projects/${projectId}/decisions/comments/${commentId}`),
   toggleReaction:  (projectId, id, emoji) => api.post(`/projects/${projectId}/decisions/${id}/reactions`, { emoji }),
   updateStakeholders: (projectId, id, ids) => api.put(`/projects/${projectId}/decisions/${id}/stakeholders`, { stakeholder_ids: ids }),
+}; // ✅ ปิด decisionAPI ถูกต้อง
+
 export const adminAPI = {
   getMetrics: (range) => api.get('/admin/metrics', { params: range ? { range } : {} }),
 };
@@ -136,16 +121,13 @@ export const systemAPI = {
   getHealth: () => api.get('/health'),
 };
 
-// ✅ Roles API — สำหรับ ProjectSettings
 export const rolesAPI = {
-  getRoles:   (projectId)               => api.get(`/projects/${projectId}/roles`),
-  createRole: (projectId, data)         => api.post(`/projects/${projectId}/roles`, data),
-  updateRole: (projectId, roleId, data) => api.put(`/projects/${projectId}/roles/${roleId}`, data),
-  deleteRole: (projectId, roleId)       => api.delete(`/projects/${projectId}/roles/${roleId}`),
-  assignRole: (projectId, userId, data) => api.put(`/projects/${projectId}/members/${userId}/role`, data),
-
-  // ✅ ดึง permission ของ user ปัจจุบันในโปรเจกต์นี้
-  getMyPermissions: (projectId) => api.get(`/projects/${projectId}/my-permissions`),
+  getRoles:         (projectId)               => api.get(`/projects/${projectId}/roles`),
+  createRole:       (projectId, data)         => api.post(`/projects/${projectId}/roles`, data),
+  updateRole:       (projectId, roleId, data) => api.put(`/projects/${projectId}/roles/${roleId}`, data),
+  deleteRole:       (projectId, roleId)       => api.delete(`/projects/${projectId}/roles/${roleId}`),
+  assignRole:       (projectId, userId, data) => api.put(`/projects/${projectId}/members/${userId}/role`, data),
+  getMyPermissions: (projectId)               => api.get(`/projects/${projectId}/my-permissions`),
 };
 
 export default api;
