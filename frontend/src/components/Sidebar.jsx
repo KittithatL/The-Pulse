@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   CheckSquare,
@@ -10,64 +10,122 @@ import {
   ShieldAlert,
   FolderKanban,
   Layout,
-  Calendar
+  Calendar,
+  Settings,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { rolesAPI } from '../services/api';
 
 const Sidebar = () => {
   const location = useLocation();
-  const { projectId } = useParams(); 
+  const { projectId } = useParams();
+  const { user } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // 1. เมนูหลัก (Navigator)
+  // ── Project-level permissions ──────────────────────────────────────────────
+  const [perms, setPerms] = useState({
+    isOwner: false,
+    can_view_tasks: true,
+    can_view_finance: false,
+    can_view_risk: false,
+    can_view_decisions: false,
+  });
+
+  useEffect(() => {
+    if (!projectId || !user) return;
+
+    rolesAPI.getMyPermissions(projectId)
+      .then(res => {
+        const data = res?.data?.data ?? {};
+        setPerms({
+          isOwner:           !!data.is_owner,
+          can_view_tasks:    data.is_owner || !!data.can_view_tasks,
+          can_view_finance:  data.is_owner || !!data.can_view_finance,
+          can_view_risk:     data.is_owner || !!data.can_view_risk,
+          can_view_decisions:data.is_owner || !!data.can_view_decisions,
+        });
+      })
+      .catch(() => {
+        // ถ้า fetch ไม่ได้ (เช่นยังไม่มี API) ให้ fallback เป็น owner เห็นทุกอย่าง
+        setPerms({
+          isOwner: true,
+          can_view_tasks: true,
+          can_view_finance: true,
+          can_view_risk: true,
+          can_view_decisions: true,
+        });
+      });
+  }, [projectId, user]);
+
+  // ── Menu definitions ───────────────────────────────────────────────────────
+
+  // 1. Core Navigator
   const coreItems = [
     { icon: FolderKanban, label: 'ALL PROJECTS', path: '/projects' },
-    { icon: CheckSquare, label: 'MY TASKS', path: '/my-tasks' },
-    { icon: Calendar, label: 'MY DAY', path: '/my-days' },
+    { icon: CheckSquare,  label: 'MY TASKS',     path: '/my-tasks' },
+    { icon: Calendar,     label: 'MY DAY',        path: '/my-days' },
   ];
 
-  // 2. เมนูเฉพาะโปรเจกต์ (Active Project)
+  // 2. Project-specific (ซ่อนตาม permissions)
   const projectSpecificItems = projectId ? [
-    { icon: Layout, label: 'PROJECT OVERVIEW', path: `/dashboard/${projectId}` },
-    { icon: CheckSquare, label: 'TASKS KANBAN', path: `/projects/${projectId}/tasks` },
-    { icon: DollarSign, label: 'FINANCIAL HUB', path: `/dashboard/${projectId}/finance` },
-    { icon: ShieldAlert, label: 'RISK SENTINEL', path: `/dashboard/${projectId}/risk-sentinel` },
-    { icon: Target, label: 'DECISION HUB', path: `/dashboard/${projectId}/decisions` },
-  ] : [];
+    {
+      icon: Layout,
+      label: 'PROJECT OVERVIEW',
+      path: `/dashboard/${projectId}`,
+      show: true,
+    },
+    {
+      icon: CheckSquare,
+      label: 'TASKS KANBAN',
+      path: `/projects/${projectId}/tasks`,
+      show: perms.can_view_tasks,
+    },
+    {
+      icon: DollarSign,
+      label: 'FINANCIAL HUB',
+      path: `/dashboard/${projectId}/finance`,
+      show: perms.can_view_finance,
+    },
+    {
+      icon: ShieldAlert,
+      label: 'RISK SENTINEL',
+      path: `/dashboard/${projectId}/risk-sentinel`,
+      show: perms.can_view_risk,
+    },
+    {
+      icon: Target,
+      label: 'DECISION HUB',
+      path: `/dashboard/${projectId}/decisions`,
+      show: perms.can_view_decisions,
+    },
+    // Settings — เฉพาะ owner เท่านั้น
+    {
+      icon: Settings,
+      label: 'SETTINGS',
+      path: `/projects/${projectId}/settings`,
+      show: perms.isOwner,
+    },
+  ].filter(item => item.show) : [];
 
-  // 3. เมนู Admin
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const isAdmin = currentUser?.role === 'admin';
-
-  const adminItems = isAdmin ? [
+  // 3. Admin (system-level)
+  const isSystemAdmin = user?.role === 'admin';
+  const adminItems = isSystemAdmin ? [
     { icon: Shield, label: 'ADMIN PANEL', path: '/admin' },
   ] : [];
 
-  /**
-   * ✅ ปรับปรุงฟังก์ชันการเช็ค Active Path ให้แม่นยำ 100%
-   */
+  // ── Active path check ──────────────────────────────────────────────────────
   const isPathActive = (itemPath) => {
     const currentPath = location.pathname;
-
-    // A. กรณีที่ Path ตรงกันเป๊ะ (ให้ความสำคัญสูงสุด)
     if (currentPath === itemPath) return true;
-
-    // B. แก้ไขปัญหาเมนู ALL PROJECTS (/projects) แดงซ้อนกับ Kanban
-    // ถ้าเมนูคือ /projects เราจะให้แดงเฉพาะเมื่ออยู่ที่หน้ารวมโครงการจริงๆ เท่านั้น
-    if (itemPath === '/projects') {
-      return currentPath === '/projects';
+    if (itemPath === '/projects') return currentPath === '/projects';
+    if (
+      itemPath.includes('/dashboard/') &&
+      !itemPath.includes('risk-sentinel') &&
+      !itemPath.includes('finance') &&
+      !itemPath.includes('decisions')
+    ) {
+      return currentPath === itemPath || currentPath === `${itemPath}/overview`;
     }
-
-    // C. สำหรับ Dashboard Overview (ป้องกันมันแดงทับเมนูย่อยอื่นๆ ใน dashboard)
-    if (itemPath.includes('/dashboard/') && 
-        !itemPath.includes('risk-sentinel') && 
-        !itemPath.includes('finance') && 
-        !itemPath.includes('decisions')) {
-        // แดงเฉพาะเมื่ออยู่ที่หน้า dashboard/id หรือ dashboard/id/overview เท่านั้น
-        return currentPath === itemPath || currentPath === `${itemPath}/overview`;
-    }
-
-    // D. สำหรับเมนูย่อยที่มีความเฉพาะเจาะจง (เช่น /projects/8/tasks)
-    // ใช้ startsWith ได้ เพราะ path มีความยาวและเจาะจงพอ
     return currentPath.startsWith(itemPath);
   };
 
@@ -94,6 +152,7 @@ const Sidebar = () => {
     );
   };
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
       <div
@@ -101,7 +160,7 @@ const Sidebar = () => {
           isCollapsed ? 'w-20' : 'w-64'
         }`}
       >
-        {/* LOGO SECTION */}
+        {/* LOGO */}
         <div className={`flex items-center gap-3 mb-10 px-2 ${isCollapsed ? 'justify-center' : ''}`}>
           <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/30 text-white font-black text-xl">
             P
@@ -114,10 +173,10 @@ const Sidebar = () => {
           )}
         </div>
 
-        {/* MENU CONTENT */}
+        {/* MENU */}
         <div className="flex-1 space-y-8 overflow-y-auto scrollbar-hide px-2">
-          
-          {/* CORE NAVIGATOR */}
+
+          {/* Core Navigator */}
           <nav className="space-y-1">
             {!isCollapsed && (
               <p className="text-[10px] font-black text-gray-600 mb-3 px-4 tracking-[0.2em] uppercase">Navigator</p>
@@ -125,7 +184,7 @@ const Sidebar = () => {
             {coreItems.map(renderMenuItem)}
           </nav>
 
-          {/* ACTIVE PROJECT - แสดงเฉพาะเมื่อเลือกโปรเจกต์แล้ว */}
+          {/* Active Project */}
           {projectId && (
             <nav className="space-y-1 pt-4 border-t border-white/5 animate-in fade-in slide-in-from-left-4 duration-500">
               {!isCollapsed && (
@@ -138,13 +197,15 @@ const Sidebar = () => {
             </nav>
           )}
 
-          {/* ADMIN SECTION */}
-          <nav className="space-y-1 pt-4 border-t border-white/5">
-            {adminItems.map(renderMenuItem)}
-          </nav>
+          {/* Admin */}
+          {adminItems.length > 0 && (
+            <nav className="space-y-1 pt-4 border-t border-white/5">
+              {adminItems.map(renderMenuItem)}
+            </nav>
+          )}
         </div>
 
-        {/* COLLAPSE BUTTON */}
+        {/* Collapse button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="mt-4 p-3 bg-white/5 hover:bg-primary/10 hover:text-primary rounded-xl transition-all flex items-center justify-center text-gray-500"
@@ -153,7 +214,7 @@ const Sidebar = () => {
         </button>
       </div>
 
-      {/* Spacer สำหรับป้องกัน Content โดน Sidebar ทับ */}
+      {/* Spacer */}
       <div className={`transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`} />
 
       <style>{`

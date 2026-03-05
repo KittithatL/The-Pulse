@@ -15,13 +15,20 @@ import MyDays from './pages/MyDays';
 import FinancialHub from './pages/FinancialHub';
 import DecisionHub from './pages/DecisionHub';
 import AdminPanel from './pages/AdminPanel.jsx';
+import ProjectSettings from './pages/ProjectSettings';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 const AdminRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return null;
-  console.log('AdminRoute user:', user);
+  
+  // ✅ รอ loading เสร็จก่อนเสมอ ไม่ redirect ระหว่าง load
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0c0f]">
+      <div className="w-14 h-14 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+    </div>
+  );
+  
   if (user?.role !== 'admin') return <Navigate to="/projects" replace />;
   return children;
 };
@@ -49,19 +56,13 @@ const ProtectedRoute = ({ children }) => {
 
 const PublicOnlyRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
-
   if (loading) return null;
   if (isAuthenticated) return <Navigate to="/projects" replace />;
-
   return children;
 };
 
 function AppRoutes() {
   const [searchQuery, setSearchQuery] = useState('');
-
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-  };
 
   return (
     <BrowserRouter 
@@ -74,131 +75,91 @@ function AppRoutes() {
         position="top-right"
         toastOptions={{
           duration: 3000,
-          style: {
-            background: '#1a1d20',
-            color: '#fff',
-            border: '1px solid rgba(255,255,255,0.05)'
-          },
-          success: {
-            iconTheme: {
-              primary: '#EF4444',  
-              secondary: '#fff',
-            },
-          },
+          style: { background: '#1a1d20', color: '#fff', border: '1px solid rgba(255,255,255,0.05)' },
+          success: { iconTheme: { primary: '#EF4444', secondary: '#fff' } },
         }}
       />
 
       <Routes>
-       
-        <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+        <Route path="/login"    element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
         <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
 
-      
-        <Route
-          path="/projects"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <Projects searchQuery={searchQuery} />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/projects" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <Projects searchQuery={searchQuery} />
+            </Layout>
+          </ProtectedRoute>
+        } />
 
-        <Route
-          path="/projects/:projectId/tasks"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <ProjectTasks />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/projects/:projectId/tasks" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <ProjectTasks />
+            </Layout>
+          </ProtectedRoute>
+        } />
 
-        <Route
-          path="/dashboard/:projectId"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <Dashboard />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        {/* ✅ Settings — ต้องอยู่ก่อน /projects/:projectId routes อื่น */}
+        <Route path="/projects/:projectId/settings" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <ProjectSettings />
+            </Layout>
+          </ProtectedRoute>
+        } />
 
-        <Route
-          path="/dashboard/:projectId/risk-sentinel"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <RiskSentinel />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/dashboard/:projectId" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        } />
 
-        <Route
-          path="/my-tasks"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <MyTasks searchQuery={searchQuery} />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/dashboard/:projectId/risk-sentinel" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <RiskSentinel />
+            </Layout>
+          </ProtectedRoute>
+        } />
 
-       
-        <Route
-          path="/my-days"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <MyDays />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/dashboard/:projectId/finance" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <FinancialHub />
+            </Layout>
+          </ProtectedRoute>
+        } />
 
-        <Route
-          path="/dashboard/:projectId/finance"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <FinancialHub />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/my-tasks" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <MyTasks searchQuery={searchQuery} />
+            </Layout>
+          </ProtectedRoute>
+        } />
 
-        <Route
-          path="/dashboard/:projectId/decisions"
-          element={
-            <ProtectedRoute>
-              <Layout onSearch={handleSearch}>
-                <DecisionHub />
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/my-days" element={
+          <ProtectedRoute>
+            <Layout onSearch={setSearchQuery}>
+              <MyDays />
+            </Layout>
+          </ProtectedRoute>
+        } />
 
-       
-        <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-center py-20 text-gray-500">Admin Panel Under Construction</div></Layout></ProtectedRoute>} />
-          path="/admin"
-          element={
-            <AdminRoute> 
-              <Layout onSearch={handleSearch}>
-                <AdminPanel />
-              </Layout>
-            </AdminRoute>
-          }
-        />
-        
-      
-        <Route path="/" element={<Navigate to="/my-days" replace />} />
-        <Route path="/dashboard" element={<Navigate to="/projects" replace />} />
-        <Route path="*" element={<Navigate to="/my-days" replace />} />
+        <Route path="/admin" element={
+          <AdminRoute>
+            <Layout onSearch={setSearchQuery}>
+              <AdminPanel />
+            </Layout>
+          </AdminRoute>
+        } />
+
+        <Route path="/"          element={<Navigate to="/my-days"   replace />} />
+        <Route path="/dashboard" element={<Navigate to="/projects"   replace />} />
+        <Route path="*"          element={<Navigate to="/my-days"    replace />} />
       </Routes>
     </BrowserRouter>
   );

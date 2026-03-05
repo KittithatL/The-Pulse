@@ -133,8 +133,19 @@ export const adminAPI = {
 };
 
 export const systemAPI = {
-  // backend exposes /api/health as alias to /health
   getHealth: () => api.get('/health'),
+};
+
+// ✅ Roles API — สำหรับ ProjectSettings
+export const rolesAPI = {
+  getRoles:   (projectId)               => api.get(`/projects/${projectId}/roles`),
+  createRole: (projectId, data)         => api.post(`/projects/${projectId}/roles`, data),
+  updateRole: (projectId, roleId, data) => api.put(`/projects/${projectId}/roles/${roleId}`, data),
+  deleteRole: (projectId, roleId)       => api.delete(`/projects/${projectId}/roles/${roleId}`),
+  assignRole: (projectId, userId, data) => api.put(`/projects/${projectId}/members/${userId}/role`, data),
+
+  // ✅ ดึง permission ของ user ปัจจุบันในโปรเจกต์นี้
+  getMyPermissions: (projectId) => api.get(`/projects/${projectId}/my-permissions`),
 };
 
 export default api;

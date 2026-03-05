@@ -28,39 +28,32 @@ export const AuthProvider = ({ children }) => {
   };
 
   const checkAuth = async () => {
-    const token = localStorage.getItem('token');
+  const token = localStorage.getItem('token');
 
-    // ✅ ถ้ามี user cached ให้ set ก่อน เพื่อให้ UI ไม่กระตุก
-    const cachedUser = localStorage.getItem('user');
-    if (cachedUser) {
-      try {
-        setUser(JSON.parse(cachedUser));
-      } catch {
-        localStorage.removeItem('user');
-      }
-    }
+  // ✅ ลบ setUser(cachedUser) ออก — ให้รอ API จริงแทน
+  // เพราะ cachedUser อาจไม่มี role หรือข้อมูลเก่า
 
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+  if (!token) {
+    setLoading(false);
+    return;
+  }
 
-    try {
-      const response = await authAPI.getCurrentUser();
-      const currentUser = response?.data?.data?.user ?? null;
+  try {
+    const response = await authAPI.getCurrentUser();
+    const currentUser = response?.data?.data?.user ?? null;
 
-      if (!currentUser) {
-        clearAuth();
-      } else {
-        setUser(currentUser);
-        localStorage.setItem('user', JSON.stringify(currentUser));
-      }
-    } catch (error) {
+    if (!currentUser) {
       clearAuth();
-    } finally {
-      setLoading(false);
+    } else {
+      setUser(currentUser);
+      localStorage.setItem('user', JSON.stringify(currentUser));
     }
-  };
+  } catch (error) {
+    clearAuth();
+  } finally {
+    setLoading(false); // ✅ loading = false หลัง API ตอบกลับเท่านั้น
+  }
+};
 
   const register = async (data) => {
     try {
@@ -83,11 +76,16 @@ export const AuthProvider = ({ children }) => {
   const login = async (data) => {
     try {
       const response = await authAPI.login(data);
-      const { user: loggedInUser, token } = response.data.data;
+      const { token } = response.data.data;
 
       localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(loggedInUser));
-      setUser(loggedInUser);
+
+      // ✅ ดึง user พร้อม role จาก /auth/me แทนที่จะใช้จาก login response
+      const meResponse = await authAPI.getCurrentUser();
+      const currentUser = meResponse?.data?.data?.user ?? null;
+
+      localStorage.setItem('user', JSON.stringify(currentUser));
+      setUser(currentUser);
 
       toast.success('Login successful!');
       return { success: true };
@@ -97,7 +95,6 @@ export const AuthProvider = ({ children }) => {
       return { success: false, message };
     }
   };
-
   const logout = () => {
     clearAuth();
     toast.success('Logged out successfully');

@@ -285,14 +285,27 @@ const addMember = async (req, res) => {
   }
 };
 
-// ✅ GET Members
+// ✅ GET Members — JOIN project_roles เพื่อส่ง role_id + permissions กลับมาด้วย
 const getMembers = async (req, res) => {
   try {
     const { projectId } = req.params;
     const result = await pool.query(
-      `SELECT pm.role, pm.joined_at, u.id AS user_id, u.username, u.email
+      `SELECT
+         pm.role,
+         pm.role_id,
+         pm.joined_at,
+         u.id   AS user_id,
+         u.username,
+         u.email,
+         pr.name  AS role_name,
+         pr.color AS role_color,
+         COALESCE(pr.can_view_tasks,      false) AS can_view_tasks,
+         COALESCE(pr.can_view_finance,    false) AS can_view_finance,
+         COALESCE(pr.can_view_risk,       false) AS can_view_risk,
+         COALESCE(pr.can_view_decisions,  false) AS can_view_decisions
        FROM project_members pm
-       JOIN users u ON pm.user_id = u.id
+       JOIN  users         u  ON pm.user_id   = u.id
+       LEFT JOIN project_roles pr ON pm.role_id = pr.id
        WHERE pm.project_id = $1
        ORDER BY CASE pm.role WHEN 'owner' THEN 1 ELSE 2 END, pm.joined_at ASC`,
       [projectId]
