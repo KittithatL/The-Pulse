@@ -10,6 +10,7 @@ router.use(checkProjectMember);
 router.get('/',                    dc.getDecisions);           // ?category=&status=&period=&keyword=
 router.post('/',                   dc.createDecision);
 router.get('/report',              dc.getStrategyReport);      // AI Strategy Report
+router.get('/activity',            dc.getProjectActivity);     // Project-wide activity log
 router.get('/:decisionId',         dc.getDecision);
 router.put('/:decisionId',         dc.updateDecision);
 router.patch('/:decisionId/archive', dc.archiveDecision);

@@ -113,15 +113,16 @@ export const financialAPI = {
 };
 
 export const decisionAPI = {
-  getDecisions:    (projectId, params) => api.get(`/projects/${projectId}/decisions`, { params }),
-  getDecision:     (projectId, id) => api.get(`/projects/${projectId}/decisions/${id}`),
-  getReport:       (projectId) => api.get(`/projects/${projectId}/decisions/report`),
-  createDecision:  (projectId, data) => api.post(`/projects/${projectId}/decisions`, data),
-  updateDecision:  (projectId, id, data) => api.put(`/projects/${projectId}/decisions/${id}`, data),
-  archiveDecision: (projectId, id) => api.patch(`/projects/${projectId}/decisions/${id}/archive`),
-  addComment:      (projectId, id, content) => api.post(`/projects/${projectId}/decisions/${id}/comments`, { content }),
-  deleteComment:   (projectId, commentId) => api.delete(`/projects/${projectId}/decisions/comments/${commentId}`),
-  toggleReaction:  (projectId, id, emoji) => api.post(`/projects/${projectId}/decisions/${id}/reactions`, { emoji }),
+  getDecisions:       (projectId, params) => api.get(`/projects/${projectId}/decisions`, { params }),
+  getDecision:        (projectId, id) => api.get(`/projects/${projectId}/decisions/${id}`),
+  getReport:          (projectId) => api.get(`/projects/${projectId}/decisions/report`),
+  getProjectActivity: (projectId, limit = 50) => api.get(`/projects/${projectId}/decisions/activity`, { params: { limit } }),
+  createDecision:     (projectId, data) => api.post(`/projects/${projectId}/decisions`, data),
+  updateDecision:     (projectId, id, data) => api.put(`/projects/${projectId}/decisions/${id}`, data),
+  archiveDecision:    (projectId, id) => api.patch(`/projects/${projectId}/decisions/${id}/archive`),
+  addComment:         (projectId, id, content) => api.post(`/projects/${projectId}/decisions/${id}/comments`, { content }),
+  deleteComment:      (projectId, commentId) => api.delete(`/projects/${projectId}/decisions/comments/${commentId}`),
+  toggleReaction:     (projectId, id, emoji) => api.post(`/projects/${projectId}/decisions/${id}/reactions`, { emoji }),
   updateStakeholders: (projectId, id, ids) => api.put(`/projects/${projectId}/decisions/${id}/stakeholders`, { stakeholder_ids: ids }),
 };
 

@@ -13,11 +13,11 @@ const getQuarterRange = (q) => {
 
 exports.getDecisions = async (req, res) => {
   const { projectId } = req.params;
-  const { category, status, period, keyword } = req.query;
+  const { category, status, period, keyword, page = 1, limit = 50 } = req.query;
 
   try {
     const params = [projectId];
-    const conditions = ['d.project_id = $1'];
+    const conditions = ['d.project_id = $1', 'd.is_archived = FALSE'];
 
     if (category && category !== 'ALL') {
       params.push(category);
@@ -40,6 +40,16 @@ exports.getDecisions = async (req, res) => {
         conditions.push(`d.created_at >= NOW() - INTERVAL '30 days'`);
       }
     }
+
+    // Pagination calculations
+    const limitNum = parseInt(limit, 10) || 50;
+    const pageNum = parseInt(page, 10) || 1;
+    const offsetNum = (pageNum - 1) * limitNum;
+
+    params.push(limitNum);
+    const limitIdx = params.length;
+    params.push(offsetNum);
+    const offsetIdx = params.length;
 
     const result = await pool.query(
       `SELECT
@@ -66,11 +76,18 @@ exports.getDecisions = async (req, res) => {
        LEFT JOIN decision_reactions r ON r.decision_id = d.id
        WHERE ${conditions.join(' AND ')}
        GROUP BY d.id, u.id, u.username
-       ORDER BY d.created_at DESC`,
+       ORDER BY d.created_at DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params
     );
 
-    return res.json({ success: true, data: { decisions: result.rows } });
+    return res.json({ 
+      success: true, 
+      data: { 
+        decisions: result.rows,
+        pagination: { page: pageNum, limit: limitNum, count: result.rows.length }
+      } 
+    });
   } catch (err) {
     console.error('getDecisions error:', err);
     return res.status(500).json({ success: false, message: 'Failed to fetch decisions' });
@@ -312,49 +329,88 @@ exports.toggleReaction = async (req, res) => {
   const { emoji } = req.body; // 'up' | 'down' | etc.
   if (!emoji) return res.status(400).json({ success: false, message: 'emoji is required' });
 
+  const client = await pool.connect();
   try {
-    const existing = await pool.query(
+    await client.query('BEGIN');
+    const existing = await client.query(
       `SELECT id FROM decision_reactions WHERE decision_id=$1 AND user_id=$2 AND emoji=$3`,
       [decisionId, req.user.id, emoji]
     );
+    
+    let actionResponse;
     if (existing.rows.length > 0) {
-      await pool.query(`DELETE FROM decision_reactions WHERE id=$1`, [existing.rows[0].id]);
-      return res.json({ success: true, action: 'removed' });
+      await client.query(`DELETE FROM decision_reactions WHERE id=$1`, [existing.rows[0].id]);
+      actionResponse = 'removed';
     } else {
-      await pool.query(
+      await client.query(
         `INSERT INTO decision_reactions (decision_id, user_id, emoji) VALUES ($1,$2,$3)`,
         [decisionId, req.user.id, emoji]
       );
-      return res.json({ success: true, action: 'added' });
+      actionResponse = 'added';
     }
+    
+    await client.query('COMMIT');
+    return res.json({ success: true, action: actionResponse });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('toggleReaction error:', err);
     return res.status(500).json({ success: false, message: 'Failed to toggle reaction' });
+  } finally {
+    client.release();
   }
 };
 
 exports.updateStakeholders = async (req, res) => {
   const { decisionId } = req.params;
   const { stakeholder_ids = [] } = req.body;
+  
+  const client = await pool.connect();
   try {
-    await pool.query(`DELETE FROM decision_stakeholders WHERE decision_id = $1`, [decisionId]);
+    await client.query('BEGIN');
+    
+    await client.query(`DELETE FROM decision_stakeholders WHERE decision_id = $1`, [decisionId]);
     for (const uid of stakeholder_ids) {
-      await pool.query(
+      await client.query(
         `INSERT INTO decision_stakeholders (decision_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
         [decisionId, uid]
       );
     }
-    await pool.query(
+    await client.query(
       `INSERT INTO decision_activity (decision_id, actor_id, action, detail) VALUES ($1,$2,'STAKEHOLDERS_UPDATED','Stakeholders list updated')`,
       [decisionId, req.user.id]
     );
+    
+    await client.query('COMMIT');
     return res.json({ success: true, message: 'Stakeholders updated' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('updateStakeholders error:', err);
     return res.status(500).json({ success: false, message: 'Failed to update stakeholders' });
+  } finally {
+    client.release();
   }
 };
 
+exports.getProjectActivity = async (req, res) => {
+  const { projectId } = req.params;
+  const { limit = 50 } = req.query;
+  try {
+    const result = await pool.query(
+      `SELECT da.*, u.username, d.title AS decision_title, d.code AS decision_code
+       FROM decision_activity da
+       LEFT JOIN users u ON u.id = da.actor_id
+       LEFT JOIN decisions d ON d.id = da.decision_id
+       WHERE d.project_id = $1
+       ORDER BY da.created_at DESC
+       LIMIT $2`,
+      [projectId, parseInt(limit)]
+    );
+    return res.json({ success: true, data: { activity: result.rows } });
+  } catch (err) {
+    console.error('getProjectActivity error:', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch activity' });
+  }
+};
 
 exports.getStrategyReport = async (req, res) => {
   const { projectId } = req.params;
