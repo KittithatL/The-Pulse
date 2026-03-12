@@ -17,7 +17,6 @@ const authenticate = async (req, res, next) => {
 
     const decoded = verifyToken(token);
 
-    // ✅ jwt payload ต้องมี decoded.id
     if (!decoded?.id) {
       return res.status(401).json({
         success: false,
@@ -25,9 +24,9 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // ✅ schema users: id, username, email, password, created_at, updated_at
+    // ✅ เพิ่ม twofa_enabled เพื่อให้ controller ใช้งานได้
     const result = await db.query(
-      'SELECT id, username, email, role ,created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, username, email, role, twofa_enabled, created_at, updated_at FROM users WHERE id = $1',
       [decoded.id]
     );
 
@@ -38,7 +37,7 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    req.user = result.rows[0]; // ✅ req.user.id พร้อมใช้งานทุก controller
+    req.user = result.rows[0];
     next();
   } catch (error) {
     console.error('Authentication error:', error);

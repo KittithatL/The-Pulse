@@ -28,42 +28,46 @@ export const AuthProvider = ({ children }) => {
   };
 
   const checkAuth = async () => {
-  const token = localStorage.getItem('token');
-
-  // ✅ ลบ setUser(cachedUser) ออก — ให้รอ API จริงแทน
-  // เพราะ cachedUser อาจไม่มี role หรือข้อมูลเก่า
-
-  if (!token) {
-    setLoading(false);
-    return;
-  }
-
-  try {
-    const response = await authAPI.getCurrentUser();
-    const currentUser = response?.data?.data?.user ?? null;
-
-    if (!currentUser) {
-      clearAuth();
-    } else {
-      setUser(currentUser);
-      localStorage.setItem('user', JSON.stringify(currentUser));
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
     }
-  } catch (error) {
-    clearAuth();
-  } finally {
-    setLoading(false); // ✅ loading = false หลัง API ตอบกลับเท่านั้น
-  }
-};
+    try {
+      const response = await authAPI.getCurrentUser();
+      const currentUser = response?.data?.data?.user ?? null;
+      if (!currentUser) {
+        clearAuth();
+      } else {
+        setUser(currentUser);
+        localStorage.setItem('user', JSON.stringify(currentUser));
+      }
+    } catch (error) {
+      clearAuth();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ refreshUser — ดึงข้อมูล user ใหม่จาก server (ใช้หลัง enable/disable 2FA)
+  const refreshUser = async () => {
+    try {
+      const response = await authAPI.getCurrentUser();
+      const currentUser = response?.data?.data?.user ?? null;
+      if (currentUser) {
+        setUser(currentUser);
+        localStorage.setItem('user', JSON.stringify(currentUser));
+      }
+    } catch (e) {}
+  };
 
   const register = async (data) => {
     try {
       const response = await authAPI.register(data);
       const { user: newUser, token } = response.data.data;
-
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(newUser));
       setUser(newUser);
-
       toast.success('Registration successful!');
       return { success: true };
     } catch (error) {
@@ -77,16 +81,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authAPI.login(data);
       const { token } = response.data.data;
-
       localStorage.setItem('token', token);
-
-      // ✅ ดึง user พร้อม role จาก /auth/me แทนที่จะใช้จาก login response
       const meResponse = await authAPI.getCurrentUser();
       const currentUser = meResponse?.data?.data?.user ?? null;
-
       localStorage.setItem('user', JSON.stringify(currentUser));
       setUser(currentUser);
-
       toast.success('Login successful!');
       return { success: true };
     } catch (error) {
@@ -95,6 +94,7 @@ export const AuthProvider = ({ children }) => {
       return { success: false, message };
     }
   };
+
   const logout = () => {
     clearAuth();
     toast.success('Logged out successfully');
@@ -106,6 +106,7 @@ export const AuthProvider = ({ children }) => {
     register,
     login,
     logout,
+    refreshUser, // ✅
     isAuthenticated: !!user,
   };
 
