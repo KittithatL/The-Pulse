@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { 
-  Search, Globe, Bell, X, LogOut, Folder, 
+  Search, Bell, X, LogOut, Folder, 
   ArrowRight, ShieldAlert, CheckCircle2, Clock,
   Filter, Trash2, Eye, AlertTriangle, CheckCheck,
   Users, Check, XCircle
@@ -16,7 +16,6 @@ const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
   transports: ['websocket']
 });
 
-/* ─── Notification Filter Tabs ─── */
 const FILTERS = [
   { key: 'all',     label: 'All' },
   { key: 'risk',    label: 'Risks' },
@@ -46,9 +45,10 @@ const Navbar = ({ onSearch, projects = [] }) => {
       return next;
     });
   };
-  const [showNoti, setShowNoti]         = useState(false);
-  const [notiFilter, setNotiFilter]     = useState('all');
-  const [handlingIds, setHandlingIds]   = useState(new Set()); // prevent double-click
+
+  const [showNoti, setShowNoti]       = useState(false);
+  const [notiFilter, setNotiFilter]   = useState('all');
+  const [handlingIds, setHandlingIds] = useState(new Set());
 
   const notiRef = useRef(null);
   const wrapRef = useRef(null);
@@ -57,10 +57,8 @@ const Navbar = ({ onSearch, projects = [] }) => {
   const username = user?.username || 'USER';
   const initial  = (username?.[0] || 'U').toUpperCase();
 
-  // ── Fetch ALL notifications (risk + task + pairing) ──
   const fetchNotifications = async () => {
     try {
-      // ✅ ใช้ getAllUserNotifications ไม่ใช่ getRisks
       const res = await dashboardAPI.getAllNotifications();
       const alerts = res.data?.data?.alerts || [];
       setNotifications(alerts);
@@ -70,14 +68,12 @@ const Navbar = ({ onSearch, projects = [] }) => {
     }
   };
 
-  // ── Socket setup ──
   useEffect(() => {
     fetchNotifications();
     if (user?.id) socket.emit('join_user_room', user.id);
 
     socket.on('new_notification', (data) => {
       setNotifications(prev => {
-        // ป้องกัน duplicate
         if (prev.find(n => n.id === data.id && n.type === data.type)) return prev;
         return [data, ...prev];
       });
@@ -86,7 +82,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
     });
 
     socket.on('resolve_notification', (data) => {
-      // ✅ ลบออกทันทีเมื่อ accept/decline pairing
       setNotifications(prev => prev.filter(n => !(n.id === data.id && n.type === data.type)));
     });
 
@@ -99,7 +94,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
     };
   }, [user]);
 
-  // ── Click outside ──
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (notiRef.current && !notiRef.current.contains(e.target)) setShowNoti(false);
@@ -109,17 +103,14 @@ const Navbar = ({ onSearch, projects = [] }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ── Mark one as read ──
   const markAsRead = (noti) => {
     setReadIds(prev => new Set([...prev, `${noti.type}-${noti.id}`]));
   };
 
-  // ── Mark all as read ──
   const markAllAsRead = () => {
     setReadIds(new Set(notifications.map(n => `${n.type}-${n.id}`)));
   };
 
-  // ── Resolve risk ──
   const handleResolveAlert = async (e, alertId) => {
     e.stopPropagation();
     try {
@@ -131,14 +122,12 @@ const Navbar = ({ onSearch, projects = [] }) => {
     }
   };
 
-  // ── Accept pairing ──
   const handleAcceptPairing = async (e, noti) => {
     e.stopPropagation();
     if (handlingIds.has(noti.id)) return;
     setHandlingIds(prev => new Set([...prev, noti.id]));
     try {
       await pairingAPI.acceptRequest(noti.id);
-      // ✅ ลบออกจาก local state ทันที ไม่ต้องรอ socket
       setNotifications(prev => prev.filter(n => !(n.id === noti.id && n.type === 'pairing')));
       toast.success('Pairing accepted! 🤝');
     } catch {
@@ -148,14 +137,12 @@ const Navbar = ({ onSearch, projects = [] }) => {
     }
   };
 
-  // ── Decline pairing ──
   const handleDeclinePairing = async (e, noti) => {
     e.stopPropagation();
     if (handlingIds.has(noti.id)) return;
     setHandlingIds(prev => new Set([...prev, noti.id]));
     try {
       await pairingAPI.declineRequest(noti.id);
-      // ✅ ลบออกจาก local state ทันที
       setNotifications(prev => prev.filter(n => !(n.id === noti.id && n.type === 'pairing')));
       toast.success('Pairing declined');
     } catch {
@@ -165,7 +152,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
     }
   };
 
-  // ── Clear all ──
   const handleClearAll = async () => {
     try {
       await dashboardAPI.clearAllNotifications();
@@ -177,7 +163,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
     }
   };
 
-  // ── Filtered + derived counts ──
   const filteredNotifications = useMemo(() => {
     if (notiFilter === 'all') return notifications;
     return notifications.filter(n => n.type === notiFilter);
@@ -193,7 +178,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
 
   const handleToggleNoti = () => setShowNoti(v => !v);
 
-  // ── Search ──
   const handleSearch = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -227,7 +211,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
-  // ── Notification icon by type ──
   const getNotiIcon = (noti) => {
     if (noti.type === 'task')    return <Clock className="w-4 h-4" />;
     if (noti.type === 'pairing') return <Users className="w-4 h-4" />;
@@ -307,7 +290,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
             {showNoti && (
               <div className="absolute top-full right-0 mt-2 w-[360px] bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
 
-                {/* Panel Header */}
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xs font-black uppercase tracking-widest text-gray-800">Tactical Briefing</h3>
@@ -325,7 +307,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
                     </div>
                   </div>
 
-                  {/* Filter Tabs */}
                   <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
                     {FILTERS.map(f => {
                       const count = f.key === 'all' ? notifications.length
@@ -359,7 +340,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
                   </div>
                 </div>
 
-                {/* Notification List */}
                 <div className="max-h-[420px] overflow-y-auto scrollbar-hide">
                   {filteredNotifications.length > 0 ? filteredNotifications.map(noti => {
                     const key    = `${noti.type}-${noti.id}`;
@@ -377,12 +357,10 @@ const Navbar = ({ onSearch, projects = [] }) => {
                         }}
                       >
                         <div className="flex gap-3">
-                          {/* Icon */}
                           <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${getNotiColor(noti)}`}>
                             {getNotiIcon(noti)}
                           </div>
 
-                          {/* Content */}
                           <div className="space-y-1 flex-1">
                             <div className="flex items-start gap-2">
                               {!isRead && <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
@@ -399,20 +377,13 @@ const Navbar = ({ onSearch, projects = [] }) => {
                                 {new Date(noti.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
                               {noti.severity === 'critical' && (
-                                <>
-                                  <span className="text-gray-300">•</span>
-                                  <span className="text-[9px] font-black text-red-500 uppercase">Critical</span>
-                                </>
+                                <><span className="text-gray-300">•</span><span className="text-[9px] font-black text-red-500 uppercase">Critical</span></>
                               )}
                               {noti.type === 'pairing' && noti.weight === 'High' && (
-                                <>
-                                  <span className="text-gray-300">•</span>
-                                  <span className="text-[9px] font-black text-purple-500 uppercase">High Priority</span>
-                                </>
+                                <><span className="text-gray-300">•</span><span className="text-[9px] font-black text-purple-500 uppercase">High Priority</span></>
                               )}
                             </div>
 
-                            {/* ✅ Pairing Accept / Decline buttons */}
                             {noti.type === 'pairing' && (
                               <div className="flex gap-2 mt-2" onClick={e => e.stopPropagation()}>
                                 <button
@@ -433,7 +404,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
                             )}
                           </div>
 
-                          {/* Hover actions for non-pairing */}
                           {noti.type !== 'pairing' && (
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                               {!isRead && (
@@ -472,7 +442,6 @@ const Navbar = ({ onSearch, projects = [] }) => {
                   )}
                 </div>
 
-                {/* Panel Footer */}
                 {filteredNotifications.length > 0 && (
                   <div className="p-3 border-t border-gray-100 bg-gray-50/50 text-center">
                     <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
@@ -486,14 +455,17 @@ const Navbar = ({ onSearch, projects = [] }) => {
             )}
           </div>
 
-          {/* Logout */}
+          {/* ── Logout ── */}
           <button onClick={handleLogout} className="p-2 hover:bg-red-50 rounded-lg text-red-600 flex items-center gap-2 font-bold transition-colors">
             <LogOut className="w-5 h-5" />
             <span className="hidden lg:block text-sm uppercase">Logout</span>
           </button>
 
-          {/* User avatar */}
-          <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+          {/* ── User Avatar → navigate to /security ✅ ── */}
+          <button
+            onClick={() => navigate('/security')}
+            className="flex items-center gap-3 pl-4 border-l border-gray-200"
+          >
             <div className="text-right hidden sm:block">
               <p className="text-sm font-black text-gray-800 uppercase leading-none tracking-tighter">{username}</p>
               <p className="text-[9px] text-primary font-bold tracking-[0.2em] mt-1 italic">ACTIVE_UPLINK</p>
@@ -501,7 +473,8 @@ const Navbar = ({ onSearch, projects = [] }) => {
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-red-600 rounded-full flex items-center justify-center text-white font-black shadow-lg shadow-primary/20">
               {initial}
             </div>
-          </div>
+          </button>
+
         </div>
       </div>
     </div>
