@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -50,8 +51,7 @@ export const taskAPI = {
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   updateTaskStatus: (id, status) => api.put(`/tasks/${id}`, { status }),
   getMyTasks: () => api.get('/tasks/my-tasks', {
-    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
-    params: { _t: Date.now() }
+    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
   }),
 
   getMessages: (taskId) => api.get(`/tasks/${taskId}/messages`),
@@ -64,11 +64,12 @@ export const dashboardAPI = {
   getInfrastructure: (projectId) => api.get(`/dashboard/${projectId}/infrastructure`),
 
   getRisks: (projectId) => {
-    if (projectId === 'all') {
-      return api.get('/dashboard/notifications/all');
-    }
+    if (projectId === 'all') return api.get('/dashboard/notifications/all');
     return api.get(`/dashboard/${projectId}/risks`);
   },
+
+  // ✅ เพิ่ม
+  getAllNotifications: () => api.get('/dashboard/notifications/all'),
 
   getMyDayBriefing: () => api.get('/dashboard/my-day/briefing'),
   submitMood: (projectId, score) => api.post(`/dashboard/${projectId}/mood`, { sentiment_score: score }),
@@ -115,6 +116,13 @@ export const decisionAPI = {
 
 export const adminAPI = {
   getMetrics: (range) => api.get('/admin/metrics', { params: range ? { range } : {} }),
+};
+
+export const pairingAPI = {
+  sendRequest:    (data) => api.post('/pairing/request', data),
+  acceptRequest:  (id)   => api.patch(`/pairing/${id}/accept`),
+  declineRequest: (id)   => api.patch(`/pairing/${id}/decline`),
+  getMyPairs:     ()     => api.get('/pairing/my-pairs'), // ✅ เพิ่ม
 };
 
 export const systemAPI = {

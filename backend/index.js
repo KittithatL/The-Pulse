@@ -18,6 +18,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const financialRoutes = require('./routes/financialRoutes');
 const decisionRoutes = require('./routes/decisionRoutes'); // ✅ เพิ่มบรรทัดนี้
 const adminRoutes = require('./routes/adminRoutes');
+const pairingRoutes = require('./routes/paringRoutes');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
@@ -71,6 +72,7 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/projects/:projectId/finance', financialRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/pairing', pairingRoutes);
 
 app.get('/health', (req, res) => {
   res.status(200).json({

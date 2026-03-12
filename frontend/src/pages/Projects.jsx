@@ -289,7 +289,7 @@ const Projects = ({ searchQuery = '' }) => {
                 </div>
 
                 <button
-                  onClick={() => navigate(`/projects/${project.project_id}/tasks`)}
+                  onClick={() => navigate(`/dashboard/${project.project_id}`)}
                   className="text-primary hover:text-primary-dark font-semibold text-sm flex items-center gap-1"
                 >
                   ENTER ENVIRONMENT →
