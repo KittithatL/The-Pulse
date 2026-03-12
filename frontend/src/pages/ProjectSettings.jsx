@@ -4,7 +4,7 @@ import {
   ArrowLeft, Plus, Trash2, Save, X, Shield,
   Users, Check, Pencil, Crown,
   LayoutDashboard, CheckSquare, DollarSign, ShieldAlert, Target,
-  UserPlus, Mail,
+  UserPlus, Mail, Zap,
 } from 'lucide-react';
 import { projectAPI } from '../services/api';
 import api from '../services/api';
@@ -41,6 +41,90 @@ const DEFAULT_PERMS = {
   can_view_decisions: false,
 };
 
+// ─── Preset Roles ──────────────────────────────────────────────────────────────
+const ROLE_PRESETS = [
+  {
+    label: 'Developer',
+    color: '#6366f1',
+    can_view_tasks: true,
+    can_view_finance: false,
+    can_view_risk: true,
+    can_view_decisions: false,
+  },
+  {
+    label: 'Designer',
+    color: '#ec4899',
+    can_view_tasks: true,
+    can_view_finance: false,
+    can_view_risk: false,
+    can_view_decisions: false,
+  },
+  {
+    label: 'QA',
+    color: '#f97316',
+    can_view_tasks: true,
+    can_view_finance: false,
+    can_view_risk: true,
+    can_view_decisions: false,
+  },
+  {
+    label: 'Manager',
+    color: '#22c55e',
+    can_view_tasks: true,
+    can_view_finance: true,
+    can_view_risk: true,
+    can_view_decisions: true,
+  },
+  {
+    label: 'Frontend',
+    color: '#3b82f6',
+    can_view_tasks: true,
+    can_view_finance: false,
+    can_view_risk: false,
+    can_view_decisions: false,
+  },
+  {
+    label: 'Backend',
+    color: '#8b5cf6',
+    can_view_tasks: true,
+    can_view_finance: false,
+    can_view_risk: true,
+    can_view_decisions: false,
+  },
+  {
+    label: 'DevOps',
+    color: '#14b8a6',
+    can_view_tasks: true,
+    can_view_finance: false,
+    can_view_risk: true,
+    can_view_decisions: false,
+  },
+  {
+    label: 'PM',
+    color: '#eab308',
+    can_view_tasks: true,
+    can_view_finance: true,
+    can_view_risk: true,
+    can_view_decisions: true,
+  },
+  {
+    label: 'Finance',
+    color: '#22c55e',
+    can_view_tasks: false,
+    can_view_finance: true,
+    can_view_risk: false,
+    can_view_decisions: false,
+  },
+  {
+    label: 'Viewer',
+    color: '#64748b',
+    can_view_tasks: true,
+    can_view_finance: false,
+    can_view_risk: false,
+    can_view_decisions: false,
+  },
+];
+
 // ─── Add Member Modal ──────────────────────────────────────────────────────────
 const AddMemberModal = ({ projectId, onClose, onSaved }) => {
   const [input, setInput] = useState('');
@@ -73,11 +157,8 @@ const AddMemberModal = ({ projectId, onClose, onSaved }) => {
             <X size={16} />
           </button>
         </div>
-
         <div className="p-5">
-          <label className="block text-[10px] font-black tracking-widest text-gray-500 mb-2 uppercase">
-            Email or Username
-          </label>
+          <label className="block text-[10px] font-black tracking-widest text-gray-500 mb-2 uppercase">Email or Username</label>
           <div className="relative">
             <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             <input
@@ -90,16 +171,10 @@ const AddMemberModal = ({ projectId, onClose, onSaved }) => {
             />
           </div>
         </div>
-
         <div className="flex gap-3 p-5 border-t border-white/5">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-sm font-bold transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={handleAdd}
-            disabled={adding}
-            className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-sm font-bold transition-colors">Cancel</button>
+          <button onClick={handleAdd} disabled={adding}
+            className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
             <UserPlus size={14} />
             {adding ? 'Adding...' : 'Add Member'}
           </button>
@@ -150,7 +225,7 @@ const RoleCard = ({ role, onEdit, onDelete, memberCount }) => (
   </div>
 );
 
-// ─── Role Editor Modal ─────────────────────────────────────────────────────────
+// ─── Role Modal (with Preset Picker) ──────────────────────────────────────────
 const RoleModal = ({ role, projectId, onClose, onSaved }) => {
   const isEdit = !!role?.id;
   const [form, setForm] = useState({
@@ -160,6 +235,18 @@ const RoleModal = ({ role, projectId, onClose, onSaved }) => {
     ...(role ? Object.fromEntries(PERMISSIONS.map(p => [p.key, !!role[p.key]])) : {}),
   });
   const [saving, setSaving] = useState(false);
+
+  const applyPreset = (preset) => {
+    setForm(prev => ({
+      ...prev,
+      name:  preset.label,
+      color: preset.color,
+      can_view_tasks:     preset.can_view_tasks,
+      can_view_finance:   preset.can_view_finance,
+      can_view_risk:      preset.can_view_risk,
+      can_view_decisions: preset.can_view_decisions,
+    }));
+  };
 
   const handleSave = async () => {
     if (!form.name.trim()) return toast.error('Role name is required');
@@ -183,7 +270,7 @@ const RoleModal = ({ role, projectId, onClose, onSaved }) => {
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#13151a] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-[#13151a] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
         <div className="flex items-center justify-between p-5 border-b border-white/5">
           <div className="flex items-center gap-2">
             <Shield size={16} className="text-indigo-400" />
@@ -197,6 +284,40 @@ const RoleModal = ({ role, projectId, onClose, onSaved }) => {
         </div>
 
         <div className="p-5 space-y-5">
+
+          {/* ── Preset Picker (ซ่อนตอน edit เพราะมีค่าอยู่แล้ว) ── */}
+          {!isEdit && (
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Zap size={12} className="text-amber-400" />
+                <label className="text-[10px] font-black tracking-widest text-gray-500 uppercase">
+                  Quick Presets
+                </label>
+                <span className="text-[9px] text-gray-600 font-bold">(optional — auto-fills form below)</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ROLE_PRESETS.map(preset => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-black tracking-wide transition-all hover:scale-105 ${
+                      form.name.toLowerCase() === preset.label.toLowerCase()
+                        ? 'border-white/30 bg-white/10 text-white'
+                        : 'border-white/10 bg-white/3 text-gray-400 hover:border-white/20 hover:text-white'
+                    }`}
+                    style={{ borderColor: form.name === preset.label ? preset.color : undefined }}
+                  >
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: preset.color }} />
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-3 border-b border-white/5" />
+            </div>
+          )}
+
+          {/* ── Role Name ── */}
           <div>
             <label className="block text-[10px] font-black tracking-widest text-gray-500 mb-2 uppercase">Role Name</label>
             <input
@@ -207,6 +328,7 @@ const RoleModal = ({ role, projectId, onClose, onSaved }) => {
             />
           </div>
 
+          {/* ── Color ── */}
           <div>
             <label className="block text-[10px] font-black tracking-widest text-gray-500 mb-2 uppercase">Color</label>
             <div className="flex gap-2 flex-wrap">
@@ -221,6 +343,7 @@ const RoleModal = ({ role, projectId, onClose, onSaved }) => {
             </div>
           </div>
 
+          {/* ── Permissions ── */}
           <div>
             <label className="block text-[10px] font-black tracking-widest text-gray-500 mb-3 uppercase">Page Access</label>
             <div className="space-y-2">
@@ -252,11 +375,8 @@ const RoleModal = ({ role, projectId, onClose, onSaved }) => {
           <button onClick={onClose} className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-xl text-sm font-bold transition-colors">
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
             <Save size={14} />
             {saving ? 'Saving...' : 'Save Role'}
           </button>
@@ -416,13 +536,12 @@ const ProjectSettings = () => {
             <h2 className="font-black text-xs tracking-widest uppercase text-gray-300">Members</h2>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 text-gray-500">{members.length}</span>
           </div>
-          {/* ✅ Add Member button */}
           <button
             onClick={() => setShowAddMember(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-black tracking-wide transition-colors"
-            >
+          >
             <UserPlus size={12} /> Add Member
-           </button>
+          </button>
         </div>
 
         <div className="bg-[#16181d] border border-white/5 rounded-2xl overflow-hidden">
@@ -432,19 +551,11 @@ const ProjectSettings = () => {
             const assignedRole = roles.find(r => String(r.id) === String(m.role_id));
 
             return (
-              <div
-                key={m.user_id}
-                className={`flex items-center gap-4 px-5 py-3.5 group ${i < members.length - 1 ? 'border-b border-white/5' : ''}`}
-              >
-                {/* Avatar */}
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0"
-                  style={{ backgroundColor: assignedRole?.color ?? '#374151' }}
-                >
+              <div key={m.user_id} className={`flex items-center gap-4 px-5 py-3.5 group ${i < members.length - 1 ? 'border-b border-white/5' : ''}`}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0"
+                  style={{ backgroundColor: assignedRole?.color ?? '#374151' }}>
                   {(m.username || '?')[0].toUpperCase()}
                 </div>
-
-                {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-white truncate uppercase">{m.username}</span>
@@ -456,8 +567,6 @@ const ProjectSettings = () => {
                   </div>
                   <p className="text-xs text-gray-600 truncate">{m.email}</p>
                 </div>
-
-                {/* Role selector + Remove */}
                 <div className="flex items-center gap-2">
                   {isProjectOwner ? (
                     <span className="text-xs text-gray-600 font-bold italic">All access</span>
@@ -474,13 +583,9 @@ const ProjectSettings = () => {
                           <option key={r.id} value={r.id}>{r.name}</option>
                         ))}
                       </select>
-
-                      {/* ✅ Remove member — hover เพื่อแสดง */}
-                      <button
-                        onClick={() => handleRemoveMember(m)}
+                      <button onClick={() => handleRemoveMember(m)}
                         className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-all"
-                        title="Remove member"
-                      >
+                        title="Remove member">
                         <Trash2 size={13} />
                       </button>
                     </>
@@ -489,7 +594,6 @@ const ProjectSettings = () => {
               </div>
             );
           })}
-
           {members.length === 0 && (
             <div className="text-center py-8 text-gray-600 text-sm font-bold">No members yet</div>
           )}
@@ -505,7 +609,6 @@ const ProjectSettings = () => {
           onSaved={fetchData}
         />
       )}
-
       {showAddMember && (
         <AddMemberModal
           projectId={projectId}

@@ -1,220 +1,241 @@
 const pool = require('../config/database');
 
-// ── Helper: check owner ────────────────────────────────────────────────────────
-const isOwner = async (projectId, userId) => {
-  const r = await pool.query(
-    `SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2 AND role = 'owner'`,
-    [projectId, userId]
-  );
-  return r.rows.length > 0;
-};
-
-// ── GET /projects/:projectId/roles ─────────────────────────────────────────────
-const getRoles = async (req, res) => {
+// ✅ GET All Roles ของ project
+exports.getRoles = async (req, res) => {
   try {
     const { projectId } = req.params;
     const result = await pool.query(
-      `SELECT * FROM project_roles WHERE project_id = $1 ORDER BY created_at ASC`,
+      `SELECT * FROM public.project_roles WHERE project_id = $1 ORDER BY created_at ASC`,
       [projectId]
     );
-    return res.status(200).json({ success: true, data: { roles: result.rows } });
+    res.json({ success: true, data: { roles: result.rows } });
   } catch (err) {
-    console.error('getRoles error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to fetch roles' });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── POST /projects/:projectId/roles ────────────────────────────────────────────
-const createRole = async (req, res) => {
+// ✅ CREATE Role — ป้องกัน duplicate case-insensitive
+exports.createRole = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const userId = req.user.id;
+    const { name, color, can_view_tasks, can_view_finance, can_view_risk, can_view_decisions } = req.body;
 
-    if (!(await isOwner(projectId, userId))) {
-      return res.status(403).json({ success: false, message: 'Only owner can create roles' });
-    }
-
-    const {
-      name,
-      color = '#6366f1',
-      can_view_tasks = true,
-      can_view_finance = false,
-      can_view_risk = false,
-      can_view_decisions = false,
-    } = req.body;
-
-    if (!name?.trim()) {
+    if (!name || !String(name).trim()) {
       return res.status(400).json({ success: false, message: 'Role name is required' });
     }
 
+    // ── Duplicate check (case-insensitive) ──
+    const dupCheck = await pool.query(
+      `SELECT id FROM public.project_roles
+       WHERE project_id = $1 AND LOWER(TRIM(name)) = LOWER(TRIM($2))`,
+      [projectId, name]
+    );
+
+    
+    if (dupCheck.rows.length > 0) {
+      return res.status(409).json({ success: false, message: `Role "${name}" already exists in this project` });
+    }
+
     const result = await pool.query(
-      `INSERT INTO project_roles
+      `INSERT INTO public.project_roles
          (project_id, name, color, can_view_tasks, can_view_finance, can_view_risk, can_view_decisions)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [projectId, name.trim(), color, can_view_tasks, can_view_finance, can_view_risk, can_view_decisions]
+      [
+        projectId,
+        String(name).trim(),
+        color || '#6366f1',
+        can_view_tasks  ?? true,
+        can_view_finance  ?? false,
+        can_view_risk     ?? false,
+        can_view_decisions ?? false,
+      ]
     );
 
-    return res.status(201).json({ success: true, data: { role: result.rows[0] } });
+    res.status(201).json({ success: true, data: { role: result.rows[0] } });
   } catch (err) {
-    console.error('createRole error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to create role' });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── PUT /projects/:projectId/roles/:roleId ─────────────────────────────────────
-const updateRole = async (req, res) => {
+// ✅ UPDATE Role — ป้องกัน duplicate case-insensitive (ยกเว้น role ตัวเอง)
+exports.updateRole = async (req, res) => {
   try {
     const { projectId, roleId } = req.params;
-    const userId = req.user.id;
+    const { name, color, can_view_tasks, can_view_finance, can_view_risk, can_view_decisions } = req.body;
 
-    if (!(await isOwner(projectId, userId))) {
-      return res.status(403).json({ success: false, message: 'Only owner can update roles' });
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ success: false, message: 'Role name is required' });
     }
 
-    const {
-      name,
-      color,
-      can_view_tasks,
-      can_view_finance,
-      can_view_risk,
-      can_view_decisions,
-    } = req.body;
+    // ── Duplicate check ยกเว้นตัวเอง ──
+    const dupCheck = await pool.query(
+      `SELECT id FROM public.project_roles
+       WHERE project_id = $1
+         AND LOWER(TRIM(name)) = LOWER(TRIM($2))
+         AND id != $3`,
+      [projectId, name, roleId]
+    );
+    if (dupCheck.rows.length > 0) {
+      return res.status(409).json({ success: false, message: `Role "${name}" already exists in this project` });
+    }
 
     const result = await pool.query(
-      `UPDATE project_roles SET
-         name               = COALESCE($1, name),
-         color              = COALESCE($2, color),
-         can_view_tasks     = COALESCE($3, can_view_tasks),
-         can_view_finance   = COALESCE($4, can_view_finance),
-         can_view_risk      = COALESCE($5, can_view_risk),
-         can_view_decisions = COALESCE($6, can_view_decisions)
+      `UPDATE public.project_roles
+       SET name               = $1,
+           color              = $2,
+           can_view_tasks     = $3,
+           can_view_finance   = $4,
+           can_view_risk      = $5,
+           can_view_decisions = $6,
+           updated_at         = NOW()
        WHERE id = $7 AND project_id = $8
        RETURNING *`,
       [
-        name?.trim() ?? null,
-        color ?? null,
-        can_view_tasks ?? null,
-        can_view_finance ?? null,
-        can_view_risk ?? null,
-        can_view_decisions ?? null,
+        String(name).trim(),
+        color,
+        can_view_tasks  ?? true,
+        can_view_finance  ?? false,
+        can_view_risk     ?? false,
+        can_view_decisions ?? false,
         roleId,
         projectId,
       ]
     );
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Role not found' });
     }
 
-    return res.status(200).json({ success: true, data: { role: result.rows[0] } });
+    res.json({ success: true, data: { role: result.rows[0] } });
   } catch (err) {
-    console.error('updateRole error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to update role' });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── DELETE /projects/:projectId/roles/:roleId ──────────────────────────────────
-const deleteRole = async (req, res) => {
+// ✅ DELETE Role
+exports.deleteRole = async (req, res) => {
   try {
     const { projectId, roleId } = req.params;
-    const userId = req.user.id;
 
-    if (!(await isOwner(projectId, userId))) {
-      return res.status(403).json({ success: false, message: 'Only owner can delete roles' });
-    }
-
-    // Clear role_id ของ members ที่ใช้ role นี้ก่อน
+    // ถอด role_id ออกจาก members ก่อนลบ
     await pool.query(
-      `UPDATE project_members SET role_id = NULL WHERE project_id = $1 AND role_id = $2`,
+      `UPDATE public.project_members SET role_id = NULL WHERE project_id = $1 AND role_id = $2`,
       [projectId, roleId]
     );
 
     const result = await pool.query(
-      `DELETE FROM project_roles WHERE id = $1 AND project_id = $2 RETURNING id`,
+      `DELETE FROM public.project_roles WHERE id = $1 AND project_id = $2 RETURNING id`,
       [roleId, projectId]
     );
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Role not found' });
     }
 
-    return res.status(200).json({ success: true, message: 'Role deleted' });
+    res.json({ success: true, message: 'Role deleted' });
   } catch (err) {
-    console.error('deleteRole error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to delete role' });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── PUT /projects/:projectId/members/:userId/role ──────────────────────────────
-const assignRole = async (req, res) => {
+// ✅ ASSIGN Role ให้ member
+exports.assignRole = async (req, res) => {
   try {
-    const { projectId, userId: targetUserId } = req.params;
-    const requesterId = req.user.id;
+    const { projectId, userId } = req.params;
+    const { role_id } = req.body;
 
-    if (!(await isOwner(projectId, requesterId))) {
-      return res.status(403).json({ success: false, message: 'Only owner can assign roles' });
-    }
-
-    const { role_id } = req.body; // null = ลบ role
-
-    // ถ้าส่ง role_id มา ตรวจว่า role นั้น belong to project นี้
+    // ถ้าส่ง role_id มาให้ตรวจว่าอยู่ใน project เดียวกัน
     if (role_id) {
       const roleCheck = await pool.query(
-        `SELECT 1 FROM project_roles WHERE id = $1 AND project_id = $2`,
+        `SELECT id FROM public.project_roles WHERE id = $1 AND project_id = $2`,
         [role_id, projectId]
       );
       if (roleCheck.rows.length === 0) {
-        return res.status(400).json({ success: false, message: 'Role not found in this project' });
+        return res.status(400).json({ success: false, message: 'Role does not belong to this project' });
       }
     }
 
     const result = await pool.query(
-      `UPDATE project_members SET role_id = $1 WHERE project_id = $2 AND user_id = $3 RETURNING *`,
-      [role_id || null, projectId, targetUserId]
+      `UPDATE public.project_members
+       SET role_id = $1
+       WHERE project_id = $2 AND user_id = $3
+       RETURNING *`,
+      [role_id || null, projectId, userId]
     );
 
-    if (result.rows.length === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ success: false, message: 'Member not found' });
     }
 
-    return res.status(200).json({ success: true, message: 'Role assigned', data: { member: result.rows[0] } });
+    res.json({ success: true, message: 'Role assigned', data: result.rows[0] });
   } catch (err) {
-    console.error('assignRole error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to assign role' });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// ── GET /projects/:projectId/my-permissions ────────────────────────────────────
-const getMyPermissions = async (req, res) => {
+// ✅ GET My Permissions
+exports.getMyPermissions = async (req, res) => {
   try {
     const { projectId } = req.params;
-    const userId = req.user.id;
+    
+    // ── เช็คก่อนว่า req.user มีอะไรบ้าง ──
+    console.log('req.user:', req.user);
+    
+    const userId = req.user?.id ?? req.user?.user_id ?? req.user?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const ownerCheck = await pool.query(
+      `SELECT created_by FROM public.projects WHERE id = $1`,
+      [projectId]
+    );
+
+    const isOwner = ownerCheck.rows.length > 0 &&
+      String(ownerCheck.rows[0].created_by) === String(userId);
+
+    if (isOwner) {
+      return res.json({
+        success: true,
+        data: {
+          is_owner: true,
+          can_view_tasks: true,
+          can_view_finance: true,
+          can_view_risk: true,
+          can_view_decisions: true,
+          role_name: 'Owner',
+          color: '#f59e0b',
+        },
+      });
+    }
 
     const result = await pool.query(
-      `SELECT
-         pm.role,
-         pm.role_id,
-         (pm.role = 'owner') AS is_owner,
-         COALESCE(pr.can_view_tasks,      false) AS can_view_tasks,
-         COALESCE(pr.can_view_finance,    false) AS can_view_finance,
-         COALESCE(pr.can_view_risk,       false) AS can_view_risk,
-         COALESCE(pr.can_view_decisions,  false) AS can_view_decisions
-       FROM project_members pm
-       LEFT JOIN project_roles pr ON pr.id = pm.role_id
+      `SELECT 
+         COALESCE(pr.can_view_tasks, false)     AS can_view_tasks,
+         COALESCE(pr.can_view_finance, false)   AS can_view_finance,
+         COALESCE(pr.can_view_risk, false)      AS can_view_risk,
+         COALESCE(pr.can_view_decisions, false) AS can_view_decisions,
+         pr.name  AS role_name,
+         pr.color AS color
+       FROM public.project_members pm
+       LEFT JOIN public.project_roles pr ON pm.role_id = pr.id
        WHERE pm.project_id = $1 AND pm.user_id = $2`,
       [projectId, userId]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(403).json({ success: false, message: 'Not a member of this project' });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: 'Member not found' });
     }
 
-    return res.status(200).json({ success: true, data: result.rows[0] });
+    res.json({
+      success: true,
+      data: { is_owner: false, ...result.rows[0] },
+    });
+
   } catch (err) {
-    console.error('getMyPermissions error:', err);
-    return res.status(500).json({ success: false, message: 'Failed to fetch permissions' });
+    console.error('getMyPermissions ERROR:', err.message);
+    res.status(500).json({ success: false, message: err.message });
   }
 };
-
-module.exports = { getRoles, createRole, updateRole, deleteRole, assignRole, getMyPermissions };
