@@ -9,6 +9,7 @@ const loginAttempts = new Map();
 function getRateLimitKey(req, identifier) {
   return `${req.ip}|${identifier}`;
 }
+
 function checkRateLimit(key) {
   const now = Date.now();
   const entry = loginAttempts.get(key) || { count: 0, firstAt: now, blockedUntil: 0 };
@@ -16,6 +17,7 @@ function checkRateLimit(key) {
   if (now - entry.firstAt > 60_000) loginAttempts.set(key, { count: 0, firstAt: now, blockedUntil: 0 });
   return { blocked: false };
 }
+
 function recordFailedAttempt(key) {
   const now = Date.now();
   const entry = loginAttempts.get(key) || { count: 0, firstAt: now, blockedUntil: 0 };
@@ -23,12 +25,20 @@ function recordFailedAttempt(key) {
   const count = entry.count + 1;
   loginAttempts.set(key, { ...entry, count, blockedUntil: count >= 5 ? now + 60_000 : 0 });
 }
+
 function clearAttempts(key) { loginAttempts.delete(key); }
 
-async function writeLoginLog(userId, ip, status) {
+async function writeLoginLog(userId, ip, status, req) {
   try {
-    await db.query(`INSERT INTO login_logs (user_id, ip_address, status) VALUES ($1,$2,$3)`, [userId || null, ip, status]);
-  } catch (e) { console.warn('Login log skipped:', e.message); }
+    await db.query(
+      `INSERT INTO login_logs (user_id, ip_address, status) VALUES ($1,$2,$3)`,
+      [userId || null, ip, status]
+    );
+    const io = req?.app?.get('io');
+    if (io) io.emit('new_login_log');
+  } catch (e) {
+    console.warn('Login log skipped:', e.message);
+  }
 }
 
 const register = async (req, res) => {
@@ -49,7 +59,14 @@ const register = async (req, res) => {
       [username, email, passwordHash]
     );
     const user = result.rows[0];
-    return res.status(201).json({ success: true, message: 'Registration successful', data: { user: { id: user.id, username: user.username, email: user.email, created_at: user.created_at }, token: generateToken(user.id) } });
+    return res.status(201).json({
+      success: true,
+      message: 'Registration successful',
+      data: {
+        user: { id: user.id, username: user.username, email: user.email, created_at: user.created_at },
+        token: generateToken(user.id)
+      }
+    });
   } catch (error) {
     console.error('Register error:', error);
     return res.status(500).json({ success: false, message: 'Registration failed' });
@@ -65,7 +82,7 @@ const login = async (req, res) => {
   const rlKey = getRateLimitKey(req, emailOrUsername);
   const rl = checkRateLimit(rlKey);
   if (rl.blocked) {
-    await writeLoginLog(null, ip, 'blocked');
+    await writeLoginLog(null, ip, 'blocked', req);
     return res.status(429).json({ success: false, message: `Too many failed attempts. Try again in ${rl.secsLeft} seconds.`, retry_after: rl.secsLeft });
   }
 
@@ -76,13 +93,13 @@ const login = async (req, res) => {
     );
     if (result.rows.length === 0) {
       recordFailedAttempt(rlKey);
-      await writeLoginLog(null, ip, 'failed_user_not_found');
+      await writeLoginLog(null, ip, 'FAILED', req);
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
     const user = result.rows[0];
     if (!await bcrypt.compare(password, user.password)) {
       recordFailedAttempt(rlKey);
-      await writeLoginLog(user.id, ip, 'failed_wrong_password');
+      await writeLoginLog(user.id, ip, 'FAILED', req);
       const remaining = Math.max(0, 5 - (loginAttempts.get(rlKey)?.count || 0));
       return res.status(401).json({ success: false, message: `Invalid credentials. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.` });
     }
@@ -90,13 +107,20 @@ const login = async (req, res) => {
       if (!totp_code) return res.status(200).json({ success: false, requires_2fa: true, message: 'Please enter your 2FA code from your authenticator app' });
       if (!verifyTOTP(user.twofa_secret, totp_code)) {
         recordFailedAttempt(rlKey);
-        await writeLoginLog(user.id, ip, 'failed_2fa');
+        await writeLoginLog(user.id, ip, 'FAILED', req);
         return res.status(401).json({ success: false, message: 'Invalid 2FA code' });
       }
     }
     clearAttempts(rlKey);
-    await writeLoginLog(user.id, ip, 'success');
-    return res.status(200).json({ success: true, message: 'Login successful', data: { user: { id: user.id, username: user.username, email: user.email, created_at: user.created_at, twofa_enabled: user.twofa_enabled }, token: generateToken(user.id) } });
+    await writeLoginLog(user.id, ip, 'SUCCESS', req);
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        user: { id: user.id, username: user.username, email: user.email, created_at: user.created_at, twofa_enabled: user.twofa_enabled },
+        token: generateToken(user.id)
+      }
+    });
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ success: false, message: 'Login failed' });
@@ -194,9 +218,18 @@ const disable2FA = async (req, res) => {
 
 const getLoginHistory = async (req, res) => {
   try {
-    const result = await db.query(`SELECT id, ip_address, status, created_at FROM login_logs WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`, [req.user.id]);
+    const result = await db.query(
+      `SELECT id, ip_address, status, 
+              created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Bangkok' AS created_at 
+       FROM login_logs 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC LIMIT 50`,
+      [req.user.id]
+    );
     return res.json({ success: true, data: { logs: result.rows } });
-  } catch (error) { return res.status(500).json({ success: false, message: 'Failed to fetch login history' }); }
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to fetch login history' });
+  }
 };
 
 const BASE32_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -239,21 +272,13 @@ async function sendResetEmail(to, username, resetUrl) {
     console.log(`[RESET URL]: ${resetUrl}`);
     return;
   }
-
   const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // SSL
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+    host: 'smtp.gmail.com', port: 465, secure: true,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
   });
-
   await transporter.sendMail({
     from: `"The Pulse" <${process.env.SMTP_USER}>`,
-    to,
-    subject: 'Reset your Pulse password',
+    to, subject: 'Reset your Pulse password',
     html: `
       <div style="font-family:sans-serif;max-width:500px;margin:auto;padding:32px;border:1px solid #f1f5f9;border-radius:16px">
         <div style="margin-bottom:24px">
@@ -262,14 +287,12 @@ async function sendResetEmail(to, username, resetUrl) {
         </div>
         <h2 style="color:#0f172a;font-size:20px;margin:0 0 8px">Password Reset Request</h2>
         <p style="color:#64748b;margin:0 0 24px">Hi <b>${username}</b>, we received a request to reset your password.</p>
-        <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:#ef4444;color:#fff;text-decoration:none;border-radius:10px;font-weight:800;font-size:14px;letter-spacing:1px">
-          RESET PASSWORD
-        </a>
+        <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;background:#ef4444;color:#fff;text-decoration:none;border-radius:10px;font-weight:800;font-size:14px;letter-spacing:1px">RESET PASSWORD</a>
         <p style="color:#94a3b8;font-size:12px;margin-top:24px">
           This link expires in <b>1 hour</b> and can only be used once.<br>
           If you didn't request this, you can safely ignore this email.
         </p>
-      </div>`,
+      </div>`
   });
 }
 
