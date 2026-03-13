@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 15000, // ✅ จากอันแรก
   headers: {
     'Content-Type': 'application/json',
   },
@@ -25,8 +25,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      const url = error.config?.url || '';
+      // ✅ อย่า logout ถ้าเป็น 2FA routes เพราะ 401 หมายถึง "code ผิด" ไม่ใช่ "token หมดอายุ"
+      const is2FARoute = url.includes('/2fa/');
+      if (!is2FARoute) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
     return Promise.reject(error);
   }
@@ -51,7 +56,8 @@ export const taskAPI = {
   deleteTask: (id) => api.delete(`/tasks/${id}`),
   updateTaskStatus: (id, status) => api.put(`/tasks/${id}`, { status }),
   getMyTasks: () => api.get('/tasks/my-tasks', {
-    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+    params: { _t: Date.now() }
   }),
 
   getMessages: (taskId) => api.get(`/tasks/${taskId}/messages`),
@@ -68,8 +74,7 @@ export const dashboardAPI = {
     return api.get(`/dashboard/${projectId}/risks`);
   },
 
-  // ✅ เพิ่ม
-  getAllNotifications: () => api.get('/dashboard/notifications/all'),
+  getAllNotifications: () => api.get('/dashboard/notifications/all'), // ✅ จากอันแรก
 
   getMyDayBriefing: () => api.get('/dashboard/my-day/briefing'),
   submitMood: (projectId, score) => api.post(`/dashboard/${projectId}/mood`, { sentiment_score: score }),
@@ -79,9 +84,15 @@ export const dashboardAPI = {
 };
 
 export const authAPI = {
-  register: (data) => api.post('/auth/register', data),
-  login: (data) => api.post('/auth/login', data),
-  getCurrentUser: () => api.get('/auth/me'),
+  register:        (data)                => api.post('/auth/register', data),
+  login:           (data)                => api.post('/auth/login', data),
+  getCurrentUser:  ()                    => api.get('/auth/me'),
+  forgotPassword:  (email)               => api.post('/auth/forgot-password', { email }),
+  resetPassword:   (token, new_password) => api.post('/auth/reset-password', { token, new_password }),
+  setup2FA:        ()                    => api.post('/auth/2fa/setup'),
+  verify2FA:       (code)                => api.post('/auth/2fa/verify', { code }),
+  disable2FA:      (password)            => api.post('/auth/2fa/disable', { password }),
+  getLoginHistory: ()                    => api.get('/auth/login-history'),
 };
 
 export const financialAPI = {
@@ -102,17 +113,18 @@ export const financialAPI = {
 };
 
 export const decisionAPI = {
-  getDecisions:    (projectId, params) => api.get(`/projects/${projectId}/decisions`, { params }),
-  getDecision:     (projectId, id) => api.get(`/projects/${projectId}/decisions/${id}`),
-  getReport:       (projectId) => api.get(`/projects/${projectId}/decisions/report`),
-  createDecision:  (projectId, data) => api.post(`/projects/${projectId}/decisions`, data),
-  updateDecision:  (projectId, id, data) => api.put(`/projects/${projectId}/decisions/${id}`, data),
-  archiveDecision: (projectId, id) => api.patch(`/projects/${projectId}/decisions/${id}/archive`),
-  addComment:      (projectId, id, content) => api.post(`/projects/${projectId}/decisions/${id}/comments`, { content }),
-  deleteComment:   (projectId, commentId) => api.delete(`/projects/${projectId}/decisions/comments/${commentId}`),
-  toggleReaction:  (projectId, id, emoji) => api.post(`/projects/${projectId}/decisions/${id}/reactions`, { emoji }),
+  getDecisions:       (projectId, params) => api.get(`/projects/${projectId}/decisions`, { params }),
+  getDecision:        (projectId, id) => api.get(`/projects/${projectId}/decisions/${id}`),
+  getReport:          (projectId) => api.get(`/projects/${projectId}/decisions/report`),
+  getProjectActivity: (projectId, limit = 50) => api.get(`/projects/${projectId}/decisions/activity`, { params: { limit } }),
+  createDecision:     (projectId, data) => api.post(`/projects/${projectId}/decisions`, data),
+  updateDecision:     (projectId, id, data) => api.put(`/projects/${projectId}/decisions/${id}`, data),
+  archiveDecision:    (projectId, id) => api.patch(`/projects/${projectId}/decisions/${id}/archive`),
+  addComment:         (projectId, id, content) => api.post(`/projects/${projectId}/decisions/${id}/comments`, { content }),
+  deleteComment:      (projectId, commentId) => api.delete(`/projects/${projectId}/decisions/comments/${commentId}`),
+  toggleReaction:     (projectId, id, emoji) => api.post(`/projects/${projectId}/decisions/${id}/reactions`, { emoji }),
   updateStakeholders: (projectId, id, ids) => api.put(`/projects/${projectId}/decisions/${id}/stakeholders`, { stakeholder_ids: ids }),
-}; // ✅ ปิด decisionAPI ถูกต้อง
+};
 
 export const adminAPI = {
   getMetrics: (range) => api.get('/admin/metrics', { params: range ? { range } : {} }),
@@ -122,7 +134,7 @@ export const pairingAPI = {
   sendRequest:    (data) => api.post('/pairing/request', data),
   acceptRequest:  (id)   => api.patch(`/pairing/${id}/accept`),
   declineRequest: (id)   => api.patch(`/pairing/${id}/decline`),
-  getMyPairs:     ()     => api.get('/pairing/my-pairs'), // ✅ เพิ่ม
+  getMyPairs:     ()     => api.get('/pairing/my-pairs'), // ✅ จากอันแรก
 };
 
 export const systemAPI = {

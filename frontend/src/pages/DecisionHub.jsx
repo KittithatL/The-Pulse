@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Component } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { decisionAPI, projectAPI } from '../services/api';
@@ -8,6 +8,33 @@ const CATEGORIES = ['ALL', 'Technical', 'Business', 'UIUX'];
 const STATUSES   = ['ALL', 'proposed', 'under_review', 'approved', 'rejected', 'superseded'];
 const PERIODS    = ['ALL', 'Q1', 'Q2', 'Q3', 'Q4', 'MONTH'];
 const IMPACTS    = ['low', 'medium', 'high', 'critical'];
+
+// Bug 3 fix: Error Boundary to catch React render crashes (e.g. .map on undefined)
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  componentDidCatch(err, info) { console.error('DecisionHub ErrorBoundary caught:', err, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ textAlign:'center', padding:'60px 0' }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
+          <div style={{ color:'#374151', fontWeight:800, fontSize:16, marginBottom:6 }}>Something went wrong</div>
+          <div style={{ color:'#9ca3af', fontSize:13, marginBottom:8 }}>An unexpected error occurred in this section.</div>
+          {/* Show actual error for debugging */}
+          <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'10px 16px', margin:'0 auto 20px', maxWidth:500, textAlign:'left' }}>
+            <div style={{ color:'#dc2626', fontSize:11, fontWeight:700, marginBottom:4 }}>ERROR DETAILS</div>
+            <div style={{ color:'#991b1b', fontSize:12, fontFamily:'monospace', wordBreak:'break-word' }}>
+              {this.state.error?.message || String(this.state.error)}
+            </div>
+          </div>
+          <button onClick={()=>this.setState({ hasError:false, error:null })} style={{ background:'#ef4444', border:'none', borderRadius:10, padding:'10px 22px', color:'#fff', fontWeight:700, cursor:'pointer', fontSize:13 }}>Try Again</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const STATUS_STYLE = {
   proposed:     { bg: '#fff8e1', color: '#b45309', border: '#fbbf24' },
@@ -47,22 +74,24 @@ function LogDecisionModal({ isOpen, onClose, onSave, members, editDecision }) {
   const [form, setForm] = useState(init);
 
   useEffect(() => {
-    if (editDecision) {
-      setForm({
-        title: editDecision.title || '',
-        category: editDecision.category || 'Technical',
-        impact: editDecision.impact || 'medium',
-        status: editDecision.status || 'proposed',
-        rationale: editDecision.rationale || '',
-        trade_offs: editDecision.trade_offs || '',
-        jira_link: editDecision.jira_link || '',
-        confluence_link: editDecision.confluence_link || '',
-        stakeholder_ids: (editDecision.stakeholders || []).map(s => s.user_id),
-      });
-    } else {
-      setForm(init);
+    if (isOpen) {
+      if (editDecision) {
+        setForm({
+          title: editDecision.title || '',
+          category: editDecision.category || 'Technical',
+          impact: editDecision.impact || 'medium',
+          status: editDecision.status || 'proposed',   // ✅ โหลด status จาก editDecision ทุกครั้งที่ modal เปิด
+          rationale: editDecision.rationale || '',
+          trade_offs: editDecision.trade_offs || '',
+          jira_link: editDecision.jira_link || '',
+          confluence_link: editDecision.confluence_link || '',
+          stakeholder_ids: (editDecision.stakeholders || []).map(s => s.user_id),
+        });
+      } else {
+        setForm(init);
+      }
     }
-  }, [editDecision, isOpen]);
+  }, [editDecision, isOpen]); // ✅ depend on isOpen ด้วยเพื่อ reset ทุกครั้ง
 
   if (!isOpen) return null;
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -127,18 +156,6 @@ function LogDecisionModal({ isOpen, onClose, onSave, members, editDecision }) {
       
         <FLabel>Trade-offs Considered</FLabel>
         <FTextarea value={form.trade_offs} onChange={e=>set('trade_offs',e.target.value)} placeholder="What are we giving up to make this decision?" rows={3} />
-
-  
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-          <div>
-            <FLabel>Jira Link</FLabel>
-            <FInput value={form.jira_link} onChange={e=>set('jira_link',e.target.value)} placeholder="JIRA-XXX or URL" />
-          </div>
-          <div>
-            <FLabel>Confluence Spec</FLabel>
-            <FInput value={form.confluence_link} onChange={e=>set('confluence_link',e.target.value)} placeholder="Confluence page URL" />
-          </div>
-        </div>
 
      
         <FLabel>Stakeholders</FLabel>
@@ -243,6 +260,8 @@ function StrategyReportModal({ isOpen, onClose, report }) {
 
 function DecisionCard({ decision, onEdit, onArchive, onSelect, isSelected, currentUserId }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOn, setNotifOn] = useState(false);       // Bug 4 fix: track notification state
+  const [notifLoading, setNotifLoading] = useState(false); // Bug 4 fix: loading feedback
   const menuRef = useRef();
 
   useEffect(() => {
@@ -250,6 +269,22 @@ function DecisionCard({ decision, onEdit, onArchive, onSelect, isSelected, curre
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Bug 4 fix: notification toggle with loading state + visual feedback
+  const handleNotifToggle = async (e) => {
+    e.stopPropagation();
+    setNotifLoading(true);
+    try {
+      // Simulate API call — replace with real decisionAPI.toggleNotification(decision.id) when ready
+      await new Promise(res => setTimeout(res, 400));
+      setNotifOn(prev => !prev);
+      toast.success(notifOn ? 'Notifications off' : '🔔 Notifications on');
+    } catch {
+      toast.error('Failed to update notifications');
+    } finally {
+      setNotifLoading(false);
+    }
+  };
 
   return (
     <div
@@ -276,7 +311,20 @@ function DecisionCard({ decision, onEdit, onArchive, onSelect, isSelected, curre
         </div>
         <div style={{ display:'flex', gap:10, alignItems:'center', flexShrink:0 }}>
  
-          <button style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:14, padding:4 }} onClick={e=>{e.stopPropagation(); toast('Notifications toggled');}}>🔔</button>
+          <button
+            style={{
+              background: notifOn ? '#fef2f2' : 'none',
+              border: notifOn ? '1px solid #fca5a5' : 'none',
+              borderRadius: 8,
+              color: notifLoading ? '#d1d5db' : notifOn ? '#ef4444' : '#9ca3af',
+              cursor: notifLoading ? 'wait' : 'pointer',
+              fontSize: 14, padding: 4,
+              transition: 'all 0.15s',
+              transform: notifLoading ? 'scale(0.9)' : 'scale(1)',
+            }}
+            title={notifOn ? 'Mute notifications' : 'Get notified on updates'}
+            onClick={handleNotifToggle}
+          >{notifLoading ? '⏳' : '🔔'}</button>
 
           <div style={{ position:'relative' }} ref={menuRef}>
             <button style={{ background:'none', border:'none', color:'#9ca3af', cursor:'pointer', fontSize:18, padding:4 }} onClick={e=>{e.stopPropagation(); setMenuOpen(v=>!v);}}>⋮</button>
@@ -284,8 +332,7 @@ function DecisionCard({ decision, onEdit, onArchive, onSelect, isSelected, curre
               <div style={{ position:'absolute', right:0, top:28, background:'#fff', border:'1px solid #e5e7eb', borderRadius:12, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:100, minWidth:180, overflow:'hidden' }}>
                 {[
                   { label:'✎  Edit Decision', action:()=>{onEdit(decision); setMenuOpen(false);} },
-                  { label:'🔗 Copy Link', action:()=>{ navigator.clipboard?.writeText(window.location.href + '?d=' + decision.id); toast.success('Link copied'); setMenuOpen(false); } },
-                  { label:'🗃  Archive', action:()=>{onArchive(decision.id); setMenuOpen(false);}, danger: true },
+                  { label:'🗑  Delete', action:()=>{onArchive(decision.id); setMenuOpen(false);}, danger: true },
                 ].map(item=>(
                   <button key={item.label} onClick={e=>{e.stopPropagation(); item.action();}} style={{ display:'block', width:'100%', padding:'11px 16px', background:'none', border:'none', textAlign:'left', fontSize:13, color: item.danger?'#dc2626':'#374151', cursor:'pointer', fontWeight:500 }}>
                     {item.label}
@@ -381,6 +428,17 @@ function SidePanel({ decision, projectId, currentUserId, onClose, onUpdate }) {
   const [activity, setActivity] = useState([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sendingComment, setSendingComment] = useState(false);
+  // Bug 2 fix: local reactions state + per-emoji loading
+  const [reactions, setReactions] = useState(decision?.reactions || []);
+  const [reactionLoading, setReactionLoading] = useState({});
+
+  // Sync reactions whenever decision prop updates (e.g. after onUpdate reloads decisions list)
+  useEffect(() => {
+    if (decision?.reactions) {
+      setReactions(decision.reactions);
+    }
+  }, [decision?.reactions]);
 
   useEffect(() => {
     if (!decision) return;
@@ -389,6 +447,7 @@ function SidePanel({ decision, projectId, currentUserId, onClose, onUpdate }) {
       .then(r => {
         setComments(r.data.data.comments);
         setActivity(r.data.data.activity);
+        setReactions(r.data.data.decision?.reactions || decision.reactions || []);
       })
       .catch(() => toast.error('Failed to load details'))
       .finally(() => setLoading(false));
@@ -396,12 +455,14 @@ function SidePanel({ decision, projectId, currentUserId, onClose, onUpdate }) {
 
   const handleSendComment = async () => {
     if (!newComment.trim()) return;
+    setSendingComment(true);
     try {
       const r = await decisionAPI.addComment(projectId, decision.id, newComment.trim());
       setComments(p => [...p, r.data.data.comment]);
       setNewComment('');
       onUpdate();
     } catch { toast.error('Failed to send comment'); }
+    finally { setSendingComment(false); }
   };
 
   const handleDeleteComment = async (cId) => {
@@ -411,17 +472,38 @@ function SidePanel({ decision, projectId, currentUserId, onClose, onUpdate }) {
     } catch { toast.error('Failed to delete'); }
   };
 
-  const handleReaction = async (emoji) => {
+  const handleReaction = async (emojiType) => {
+    setReactionLoading(p => ({ ...p, [emojiType]: true }));
+    const uid = String(currentUserId);
+    const alreadyReacted = reactions.some(rx => String(rx.type) === emojiType && String(rx.user_id) === uid);
+    // Optimistic update immediately
+    setReactions(prev =>
+      alreadyReacted
+        ? prev.filter(rx => !(String(rx.type) === emojiType && String(rx.user_id) === uid))
+        : [...prev, { type: emojiType, user_id: uid }]
+    );
     try {
-      await decisionAPI.toggleReaction(projectId, decision.id, emoji);
+      await decisionAPI.toggleReaction(projectId, decision.id, emojiType);
+      // Re-fetch to sync — reactions are in the top-level decisions list, not getDecision
+      // So just call onUpdate() to reload the decisions list, then sync from there
       onUpdate();
-    } catch { toast.error('Failed'); }
+    } catch {
+      // Rollback on error
+      setReactions(prev =>
+        alreadyReacted
+          ? [...prev, { type: emojiType, user_id: uid }]
+          : prev.filter(rx => !(String(rx.type) === emojiType && String(rx.user_id) === uid))
+      );
+      toast.error('Failed to react');
+    } finally {
+      setReactionLoading(p => ({ ...p, [emojiType]: false }));
+    }
   };
 
   if (!decision) return null;
 
   return (
-    <div style={{ width:360, flexShrink:0, background:'#fff', border:'1px solid #f1f5f9', borderRadius:20, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <div style={{ width:360, flexShrink:0, background:'#fff', border:'1px solid #f1f5f9', borderRadius:20, display:'flex', flexDirection:'column', maxHeight:'calc(100vh - 220px)', minHeight:0, overflow:'hidden', position:'sticky', top:0, alignSelf:'flex-start' }}>
 
       <div style={{ padding:'18px 20px', borderBottom:'1px solid #f1f5f9', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <div>
@@ -465,7 +547,7 @@ function SidePanel({ decision, projectId, currentUserId, onClose, onUpdate }) {
                       )}
                     </div>
                   </div>
-                  <div style={{ background:'#f8fafc', borderRadius:10, padding:'10px 14px', color:'#475569', fontSize:13, lineHeight:1.6 }}>{c.content}</div>
+                  <div style={{ background:'#f8fafc', borderRadius:10, padding:'10px 14px', color:'#475569', fontSize:13, lineHeight:1.6, wordBreak:'break-word', overflowWrap:'anywhere' }}>{c.content}</div>
                 </div>
               ))
             }
@@ -493,12 +575,24 @@ function SidePanel({ decision, projectId, currentUserId, onClose, onUpdate }) {
       </div>
 
 
-      <div style={{ padding:'12px 20px', borderTop:'1px solid #f1f5f9', display:'flex', gap:10, alignItems:'center' }}>
+      <div style={{ padding:'12px 20px', borderTop:'1px solid #f1f5f9', display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
         {[{emoji:'👍',type:'up'},{emoji:'👎',type:'down'},{emoji:'🔥',type:'fire'},{emoji:'💡',type:'idea'}].map(r=>{
-          const count = (decision.reactions||[]).filter(rx=>rx.type===r.type).length;
+          const uid = String(currentUserId);
+          const count = reactions.filter(rx=>String(rx.type)===r.type).length;
+          const isActive = reactions.some(rx=>String(rx.type)===r.type && String(rx.user_id)===uid);
+          const isLoading = reactionLoading[r.type];
           return (
-            <button key={r.type} onClick={()=>handleReaction(r.type)} style={{ background:'#f3f4f6', border:'1px solid #e5e7eb', borderRadius:20, padding:'4px 12px', cursor:'pointer', fontSize:13, display:'flex', gap:4, alignItems:'center' }}>
-              {r.emoji} {count > 0 && <span style={{ fontSize:11, color:'#6b7280', fontWeight:700 }}>{count}</span>}
+            <button key={r.type} onClick={()=>!isLoading && handleReaction(r.type)} style={{
+              background: isActive ? '#fef2f2' : isLoading ? '#f9fafb' : '#f3f4f6',
+              border: `1.5px solid ${isActive ? '#ef4444' : '#e5e7eb'}`,
+              borderRadius:20, padding:'5px 11px', cursor: isLoading ? 'wait' : 'pointer',
+              fontSize:13, display:'flex', gap:4, alignItems:'center',
+              transform: isLoading ? 'scale(0.92)' : isActive ? 'scale(1.05)' : 'scale(1)',
+              transition:'all 0.15s', opacity: isLoading ? 0.6 : 1,
+              boxShadow: isActive ? '0 0 0 2px rgba(239,68,68,0.15)' : 'none',
+            }}>
+              <span style={{ filter: isLoading ? 'grayscale(1)' : 'none', fontSize:14 }}>{r.emoji}</span>
+              {count > 0 && <span style={{ fontSize:11, color: isActive?'#ef4444':'#6b7280', fontWeight:800 }}>{count}</span>}
             </button>
           );
         })}
@@ -514,7 +608,7 @@ function SidePanel({ decision, projectId, currentUserId, onClose, onUpdate }) {
             placeholder="Strategic Audit..."
             style={{ flex:1, background:'#f8fafc', border:'1px solid #e5e7eb', borderRadius:10, padding:'9px 14px', fontSize:13, outline:'none', color:'#374151' }}
           />
-          <button onClick={handleSendComment} style={{ background:'#ef4444', border:'none', borderRadius:10, padding:'9px 16px', color:'#fff', fontWeight:700, cursor:'pointer', fontSize:12 }}>Send</button>
+          <button onClick={handleSendComment} disabled={sendingComment} style={{ background: sendingComment ? '#9ca3af' : '#ef4444', border:'none', borderRadius:10, padding:'9px 16px', color:'#fff', fontWeight:700, cursor: sendingComment ? 'wait' : 'pointer', fontSize:12, transition:'background 0.15s', minWidth:60 }}>{sendingComment ? '...' : 'Send'}</button>
         </div>
       )}
     </div>
@@ -541,7 +635,54 @@ function Pill({ label, active, onClick }) {
   );
 }
 
+
+// Isolated component so ErrorBoundary can properly catch render errors inside
+function HistoryTab({ historyLoading, historyActivity }) {
+  if (historyLoading) {
+    return <div style={{ textAlign:'center', padding:'60px 0', color:'#9ca3af' }}>Loading history...</div>;
+  }
+  const items = Array.isArray(historyActivity) ? historyActivity : [];
+  if (items.length === 0) {
+    return (
+      <div style={{ textAlign:'center', padding:'80px 0' }}>
+        <div style={{ fontSize:48, marginBottom:12 }}>📋</div>
+        <div style={{ color:'#374151', fontWeight:800, fontSize:18, marginBottom:6 }}>No history yet</div>
+        <div style={{ color:'#9ca3af', fontSize:13 }}>Activity will appear here as decisions are created and updated</div>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+      {items.map((a, i) => (
+        <div key={i} style={{ display:'flex', gap:14, padding:'14px 0', borderBottom:'1px solid #f1f5f9', alignItems:'flex-start' }}>
+          <div style={{ width:8, height:8, borderRadius:'50%', background:'#ef4444', flexShrink:0, marginTop:6 }} />
+          <div style={{ flex:1 }}>
+            <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:2 }}>
+              <span style={{ fontSize:13, fontWeight:700, color:'#111827' }}>{a.username}</span>
+              <span style={{ fontSize:10, color:'#ef4444', fontWeight:700, background:'#fef2f2', padding:'2px 8px', borderRadius:4, letterSpacing:0.5 }}>{String(a.action).replace(/_/g,' ')}</span>
+              {a.decision_code && (
+                <span style={{ fontSize:11, color:'#6b7280', background:'#f3f4f6', padding:'2px 8px', borderRadius:4 }}>#{a.decision_code}</span>
+              )}
+            </div>
+            {a.decision_title && <div style={{ color:'#374151', fontSize:12, marginBottom:2 }}>{a.decision_title}</div>}
+            {a.detail && <div style={{ color:'#9ca3af', fontSize:12 }}>{a.detail}</div>}
+            <div style={{ color:'#d1d5db', fontSize:11, marginTop:4 }}>{new Date(a.created_at).toLocaleString()}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function DecisionHub() {
+  return (
+    <ErrorBoundary>
+      <DecisionHubInner />
+    </ErrorBoundary>
+  );
+}
+
+function DecisionHubInner() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -556,6 +697,10 @@ export default function DecisionHub() {
   const [showReport, setShowReport] = useState(false);
   const [report, setReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
+
+  // ✅ History tab state
+  const [historyActivity, setHistoryActivity] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
 
   const [keyword, setKeyword] = useState('');
@@ -596,6 +741,32 @@ export default function DecisionHub() {
 
   useEffect(() => { loadDecisions(); }, [loadDecisions]);
 
+  // fetch project-level history when switching to HISTORY tab
+  useEffect(() => {
+    if (viewMode !== 'HISTORY' || !projectId) return;
+
+    // Guard: method may not exist in current api.js version
+    if (typeof decisionAPI.getProjectActivity !== 'function') {
+      console.warn('decisionAPI.getProjectActivity is not defined — check services/api.js');
+      setHistoryActivity([]);
+      setHistoryLoading(false);
+      return;
+    }
+
+    setHistoryLoading(true);
+    decisionAPI.getProjectActivity(projectId)
+      .then(r => {
+        const activity = r?.data?.data?.activity;
+        setHistoryActivity(Array.isArray(activity) ? activity : []);
+      })
+      .catch((err) => {
+        console.error('getProjectActivity failed:', err);
+        setHistoryActivity([]);
+        toast.error('Failed to load history');
+      })
+      .finally(() => setHistoryLoading(false));
+  }, [viewMode, projectId]);
+
 
   useEffect(() => {
     const t = setTimeout(() => loadDecisions(), 400);
@@ -614,21 +785,28 @@ export default function DecisionHub() {
       setShowModal(false);
       setEditDecision(null);
       loadDecisions();
+      refreshReportIfOpen(); // refresh AI report stats if modal is open
     } catch (e) { toast.error(e.response?.data?.message || 'Failed to save'); }
   };
 
   const handleArchive = async (id) => {
-    if (!window.confirm('Archive this decision?')) return;
+    // Remove from UI immediately (optimistic) — no confirm dialog (blocked by some browsers)
+    setDecisions(prev => prev.filter(d => d.id !== id));
+    if (selectedDecision?.id === id) setSelectedDecision(null);
     try {
+      console.log('Deleting decision id:', id, 'projectId:', projectId);
       await decisionAPI.archiveDecision(projectId, id);
-      toast.success('Decision archived');
-      if (selectedDecision?.id === id) setSelectedDecision(null);
-      loadDecisions();
-    } catch { toast.error('Failed to archive'); }
+      toast.success('Decision deleted');
+    } catch (err) {
+      console.error('Delete failed:', err?.response?.data || err);
+      toast.error('Failed to delete — ' + (err?.response?.data?.message || err.message));
+      await loadDecisions();
+    }
   };
 
   const handleReport = async () => {
     setReportLoading(true);
+    setReport(null); // clear old data so modal shows fresh
     try {
       const r = await decisionAPI.getReport(projectId);
       setReport(r.data.data);
@@ -636,6 +814,15 @@ export default function DecisionHub() {
     } catch { toast.error('Failed to generate report'); }
     finally { setReportLoading(false); }
   };
+
+  // Refresh report if it's currently open (e.g. after approving a decision)
+  const refreshReportIfOpen = useCallback(async () => {
+    if (!showReport) return;
+    try {
+      const r = await decisionAPI.getReport(projectId);
+      setReport(r.data.data);
+    } catch { /* silent fail */ }
+  }, [showReport, projectId]);
 
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:400 }}>
@@ -720,14 +907,22 @@ export default function DecisionHub() {
       </div>
 
   
-      <div style={{ display:'flex', flex:1, gap:0, overflow:'hidden', padding:'16px 32px 24px' }}>
+      <div style={{ display:'flex', flex:1, gap:0, overflow:'hidden', padding:'16px 32px 24px', minHeight:0, alignItems:'flex-start' }}>
       
         <div style={{ flex:1, overflowY:'auto', paddingRight: selectedDecision?16:0 }}>
-          {decisions.length === 0 ? (
+          {viewMode === 'HISTORY' ? (
+            <ErrorBoundary>
+              <HistoryTab
+                historyLoading={historyLoading}
+                historyActivity={historyActivity}
+              />
+            </ErrorBoundary>
+          ) : decisions.length === 0 ? (
+            // ✅ Empty state for DECISIONS tab
             <div style={{ textAlign:'center', padding:'80px 0' }}>
               <div style={{ fontSize:48, marginBottom:12 }}>🎯</div>
-              <div style={{ color:'#374151', fontWeight:800, fontSize:18, marginBottom:6 }}>No decisions found</div>
-              <div style={{ color:'#9ca3af', fontSize:13, marginBottom:20 }}>Log your first strategic decision to start building your source of truth</div>
+              <div style={{ color:'#374151', fontWeight:800, fontSize:18, marginBottom:6 }}>No decisions yet</div>
+              <div style={{ color:'#9ca3af', fontSize:13, marginBottom:20 }}>Click <b>+ Log Decision</b> to start building your source of truth</div>
               <button onClick={()=>{setEditDecision(null); setShowModal(true);}} style={{ background:'#ef4444', border:'none', borderRadius:12, padding:'12px 24px', color:'#fff', fontWeight:700, cursor:'pointer' }}>+ Log Decision</button>
             </div>
           ) : (

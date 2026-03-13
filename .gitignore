@@ -29,6 +29,7 @@ backend/build/
 frontend/.next/
 frontend/out/
 frontend/build/
+frontend/dist/
 frontend/stats.html
 
 # --- Database ---

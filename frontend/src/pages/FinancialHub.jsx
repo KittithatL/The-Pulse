@@ -160,7 +160,7 @@ export default function FinancialHub() {
   };
 
   const handleApproveAll = async () => {
-    if (!window.confirm('Approve all payroll disbursements?')) return;
+    if (!window.confirm('Approve all disbursements?')) return;
     try {
       const r = await financialAPI.approveAllDisbursements(projectId);
       toast.success(r.data.message);
@@ -168,10 +168,25 @@ export default function FinancialHub() {
     } catch (e) { toast.error('Failed'); }
   };
 
-  const chartData = forecast ? [
-    ...forecast.actuals.map(a => ({ name: a.month, actual: a.actual })),
-    ...forecast.forecast.map(f => ({ name: f.month, forecast: f.forecast })),
-  ] : [];
+  const chartData = React.useMemo(() => {
+    if (!forecast) return [];
+
+    const map = new Map();
+
+    (forecast.actuals || []).forEach(a => {
+      map.set(a.month, { name: a.month, actual: a.actual, forecast: null });
+    });
+
+    (forecast.forecast || []).forEach(f => {
+      if (map.has(f.month)) {
+        map.get(f.month).forecast = f.forecast;
+      } else {
+        map.set(f.month, { name: f.month, actual: null, forecast: f.forecast });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [forecast]);
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
@@ -230,7 +245,11 @@ export default function FinancialHub() {
                 />
                 <MetricCard
                   label="RUNWAY"
-                  value={overview.runway_months !== null ? `${overview.runway_months} mo` : 'N/A'}
+                  value={
+                    overview.runway_months === null ? 'N/A' :
+                    overview.runway_months <= 0 ? 'Budget Exceeded' :
+                    `${overview.runway_months} ${overview.runway_months === 1 ? 'month' : 'months'}`
+                  }
                   sub="estimated remaining"
                   accent={overview.runway_months !== null && overview.runway_months < 3 ? '#ef4444' : '#22c55e'}
                 />
@@ -292,7 +311,7 @@ export default function FinancialHub() {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <SectionHeader title="Disbursement Ledger" count={disbursements.length} />
-            <button onClick={handleApproveAll} style={btnStyle('#22c55e')}>✓ Approve All Payroll</button>
+            <button onClick={handleApproveAll} style={btnStyle('#22c55e')}>✓ Approve All Disbursements</button>
           </div>
           {disbursements.length === 0 ? <Empty msg="No disbursements yet" /> : (
             <div style={{ overflowX: 'auto' }}>
@@ -350,17 +369,17 @@ export default function FinancialHub() {
                     <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
                     <Tooltip
                       contentStyle={{ background: '#0f1629', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff' }}
-                      formatter={(v, name) => [fmt(v, cur), name === 'actual' ? 'Actual' : 'Forecast']}
+                      formatter={(v, name) => v == null ? null : [fmt(v, cur), name === 'actual' ? '● Actual' : '◈ Forecast']}
                     />
                     <Legend wrapperStyle={{ color: '#9ca3af', fontSize: 11 }} />
-                    <Bar dataKey="actual" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="forecast" fill="#818cf8" radius={[4, 4, 0, 0]} opacity={0.6} />
+                    <Bar dataKey="actual" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={60} minPointSize={0} />
+                    <Bar dataKey="forecast" fill="#818cf8" radius={[4, 4, 0, 0]} opacity={0.75} maxBarSize={60} minPointSize={0} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
                 <MetricCard label="AVG MONTHLY BURN" value={fmt(forecast.avg_monthly_burn, cur)} sub="last 3 months" accent="#f59e0b" />
-                {overview && <MetricCard label="ESTIMATED RUNWAY" value={overview.runway_months !== null ? `${overview.runway_months} months` : 'N/A'} sub="at current burn rate" accent="#22c55e" />}
+                {overview && <MetricCard label="ESTIMATED RUNWAY" value={overview.runway_months !== null ? (overview.runway_months <= 0 ? 'Budget Exceeded' : `${overview.runway_months} ${overview.runway_months === 1 ? 'month' : 'months'}`) : 'N/A'} sub="at current burn rate" accent="#22c55e" />}
                 {overview && <MetricCard label="REMAINING BUDGET" value={fmt(overview.remaining, cur)} accent="#818cf8" />}
               </div>
             </>

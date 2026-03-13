@@ -1,9 +1,20 @@
 const pool = require('../config/database');
 
-// ✅ GET All Projects (ของ user นั้นๆ)
+const logAction = async (req, actor, action, target) => {
+  try {
+    await pool.query(
+      "INSERT INTO action_logs (actor, action, target) VALUES ($1, $2, $3)",
+      [actor, action, target]
+    );
+    const io = req?.app?.get('io');
+    if (io) io.emit('new_action_log');
+  } catch (e) {
+    console.warn('Action log skipped:', e.message);
+  }
+};
+
 const getProjects = async (req, res) => {
   try {
-    // ใช้ user.id จริง ถ้าไม่มีให้ return 401
     if (!req.user || !req.user.id) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
@@ -11,70 +22,42 @@ const getProjects = async (req, res) => {
 
     const result = await pool.query(
       `SELECT 
-        p.id AS project_id,
-        p.title,
-        p.description,
-        p.created_at,
-        p.deadline,  -- ✅ ใช้ deadline ตรงๆ เพราะแก้ DB แล้ว
-        p.learning_capacity,
-        p.created_by,
-        u.username AS creator_username,
+        p.id AS project_id, p.title, p.description, p.created_at, p.deadline,
+        p.learning_capacity, p.created_by, u.username AS creator_username,
         COUNT(DISTINCT pm2.user_id) AS member_count
       FROM projects p
-      INNER JOIN project_members pm 
-        ON p.id = pm.project_id AND pm.user_id = $1
-      LEFT JOIN users u 
-        ON p.created_by = u.id
-      LEFT JOIN project_members pm2 
-        ON p.id = pm2.project_id
-      GROUP BY 
-        p.id, p.title, p.description, p.created_at, p.deadline, p.learning_capacity, p.created_by,
-        u.id, u.username
+      INNER JOIN project_members pm ON p.id = pm.project_id AND pm.user_id = $1
+      LEFT JOIN users u ON p.created_by = u.id
+      LEFT JOIN project_members pm2 ON p.id = pm2.project_id
+      GROUP BY p.id, p.title, p.description, p.created_at, p.deadline, p.learning_capacity, p.created_by, u.id, u.username
       ORDER BY p.created_at DESC`,
       [userId]
     );
 
-    return res.status(200).json({
-      success: true,
-      data: { projects: result.rows },
-    });
+    return res.status(200).json({ success: true, data: { projects: result.rows } });
   } catch (error) {
     console.error('Get projects error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to fetch projects',
-    });
+    return res.status(500).json({ success: false, message: 'Failed to fetch projects' });
   }
 };
 
-// ✅ GET Single Project
 const getProject = async (req, res) => {
   try {
     const { projectId } = req.params;
     const userId = req.user.id;
 
-    // Check Member
     const memberCheck = await pool.query(
       `SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2`,
       [projectId, userId]
     );
     if (memberCheck.rows.length === 0) {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not a member of this project',
-      });
+      return res.status(403).json({ success: false, message: 'You are not a member of this project' });
     }
 
     const result = await pool.query(
       `SELECT 
-        p.id AS project_id,
-        p.title,
-        p.description,
-        p.created_at,
-        p.deadline, -- ✅ ใช้ deadline
-        p.learning_capacity,
-        p.created_by,
-        u.username AS creator_username
+        p.id AS project_id, p.title, p.description, p.created_at, p.deadline,
+        p.learning_capacity, p.created_by, u.username AS creator_username
       FROM projects p
       LEFT JOIN users u ON p.created_by = u.id
       WHERE p.id = $1`,
@@ -82,130 +65,94 @@ const getProject = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'Project not found',
-      });
+      return res.status(404).json({ success: false, message: 'Project not found' });
     }
 
-    return res.status(200).json({
-      success: true,
-      data: { project: result.rows[0] },
-    });
+    return res.status(200).json({ success: true, data: { project: result.rows[0] } });
   } catch (error) {
     console.error('Get project error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to fetch project',
-    });
+    return res.status(500).json({ success: false, message: 'Failed to fetch project' });
   }
 };
 
-// ✅ CREATE Project
 const createProject = async (req, res) => {
-  const client = await pool.connect(); // ใช้ client สำหรับ Transaction
-
+  const client = await pool.connect();
   try {
     const { title, description, deadline, learning_capacity } = req.body;
     const userId = req.user.id;
 
     if (!title || !String(title).trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Project title is required',
-      });
+      return res.status(400).json({ success: false, message: 'Project title is required' });
     }
 
     await client.query('BEGIN');
 
-    // Insert Project
-    // ✅ แก้ไข: ใช้ deadline ใน INSERT
     const projectResult = await client.query(
       `INSERT INTO projects (title, description, created_by, deadline, learning_capacity)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [
-        String(title).trim(), 
-        description ?? null, 
-        userId, 
-        deadline ?? null, // ✅ ส่งค่า deadline
-        learning_capacity ?? 0
-      ]
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [String(title).trim(), description ?? null, userId, deadline ?? null, learning_capacity ?? 0]
     );
 
     const project = projectResult.rows[0];
 
-    // Add Creator as Owner
     await client.query(
-      `INSERT INTO project_members (project_id, user_id, role)
-       VALUES ($1, $2, $3)`,
+      `INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, $3)`,
       [project.id, userId, 'owner']
     );
 
     await client.query('COMMIT');
 
-    return res.status(201).json({
-      success: true,
-      message: 'Project created successfully',
-      data: { project },
-    });
+    // ✅ log action
+    const actor = req.user?.username || req.user?.email || 'Unknown';
+    await logAction(req, actor, 'Created Project', String(title).trim());
+
+    return res.status(201).json({ success: true, message: 'Project created successfully', data: { project } });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Create project error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to create project',
-    });
+    return res.status(500).json({ success: false, message: 'Failed to create project' });
   } finally {
     client.release();
   }
 };
 
-// ✅ UPDATE Project
 const updateProject = async (req, res) => {
   try {
     const { projectId } = req.params;
-    console.log("🔍 req.body:", req.body);
     const { title, description, deadline, learning_capacity } = req.body;
     const userId = req.user.id;
 
     const roleCheck = await pool.query(
-      `SELECT role FROM project_members 
-       WHERE project_id = $1 AND user_id = $2`,
+      `SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2`,
       [projectId, userId]
     );
 
     if (roleCheck.rows.length === 0) return res.status(403).json({ message: 'Not a member' });
-    if (roleCheck.rows[0].role !== 'owner') {
-      return res.status(403).json({ message: 'Only owner can edit project details' });
-    }
+    if (roleCheck.rows[0].role !== 'owner') return res.status(403).json({ message: 'Only owner can edit project details' });
 
-    // ✅ แก้ไข: ใช้ deadline ใน UPDATE
     const result = await pool.query(
       `UPDATE projects 
        SET title = COALESCE($1, title),
            description = COALESCE($2, description),
-           deadline = COALESCE($3, deadline), 
+           deadline = COALESCE($3, deadline),
            learning_capacity = COALESCE($4, learning_capacity)
-       WHERE id = $5
-       RETURNING *`,
+       WHERE id = $5 RETURNING *`,
       [title ?? null, description ?? null, deadline ?? null, learning_capacity ?? null, projectId]
     );
 
     if (result.rows.length === 0) return res.status(404).json({ message: 'Project not found' });
 
-    return res.status(200).json({
-      success: true,
-      message: 'Project updated successfully',
-      data: { project: result.rows[0] },
-    });
+    // ✅ log action
+    const actor = req.user?.username || req.user?.email || 'Unknown';
+    await logAction(req, actor, 'Updated Project', title || result.rows[0].title);
+
+    return res.status(200).json({ success: true, message: 'Project updated successfully', data: { project: result.rows[0] } });
   } catch (error) {
     console.error('Update project error:', error);
     return res.status(500).json({ success: false, message: 'Failed to update project' });
   }
 };
 
-// ✅ DELETE Project
 const deleteProject = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -219,12 +166,17 @@ const deleteProject = async (req, res) => {
     if (roleCheck.rows.length === 0) return res.status(403).json({ message: 'Not a member' });
     if (roleCheck.rows[0].role !== 'owner') return res.status(403).json({ message: 'Only owner can delete project' });
 
-    const result = await pool.query(
-      `DELETE FROM projects WHERE id = $1 RETURNING id`,
-      [projectId]
-    );
+    // ดึงชื่อโปรเจกต์ก่อนลบ
+    const projectInfo = await pool.query('SELECT title FROM projects WHERE id = $1', [projectId]);
+    const projectTitle = projectInfo.rows[0]?.title || projectId;
+
+    const result = await pool.query(`DELETE FROM projects WHERE id = $1 RETURNING id`, [projectId]);
 
     if (result.rows.length === 0) return res.status(404).json({ message: 'Project not found' });
+
+    // ✅ log action
+    const actor = req.user?.username || req.user?.email || 'Unknown';
+    await logAction(req, actor, 'Deleted Project', projectTitle);
 
     return res.status(200).json({ success: true, message: 'Project deleted successfully' });
   } catch (error) {
@@ -233,7 +185,6 @@ const deleteProject = async (req, res) => {
   }
 };
 
-// ✅ ADD Member
 const addMember = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -242,7 +193,6 @@ const addMember = async (req, res) => {
 
     if (!emailOrUsername) return res.status(400).json({ message: 'Email or username is required' });
 
-    // Check Requester Role
     const roleCheck = await pool.query(
       `SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2`,
       [projectId, requesterId]
@@ -252,7 +202,6 @@ const addMember = async (req, res) => {
       return res.status(403).json({ message: 'Only owner can add members' });
     }
 
-    // Find User to Add
     const userResult = await pool.query(
       `SELECT id, username, email FROM users WHERE email = $1 OR username = $1`,
       [String(emailOrUsername).trim()]
@@ -261,50 +210,42 @@ const addMember = async (req, res) => {
     if (userResult.rows.length === 0) return res.status(404).json({ message: 'User not found' });
     const userToAdd = userResult.rows[0];
 
-    // Check if already member
     const memberCheck = await pool.query(
       `SELECT 1 FROM project_members WHERE project_id = $1 AND user_id = $2`,
       [projectId, userToAdd.id]
     );
     if (memberCheck.rows.length > 0) return res.status(400).json({ message: 'User is already a member' });
 
-    // Insert
     await pool.query(
       `INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, $3)`,
-      [projectId, userToAdd.id, 'member'] // Force role as member
+      [projectId, userToAdd.id, 'member']
     );
 
-    return res.status(201).json({
-      success: true,
-      message: 'Member added successfully',
-      data: { user: { ...userToAdd, role: 'member' } },
-    });
+    // ✅ log action
+    const actor = req.user?.username || req.user?.email || 'Unknown';
+    await logAction(req, actor, 'Added Member', userToAdd.username);
+
+    return res.status(201).json({ success: true, message: 'Member added successfully', data: { user: { ...userToAdd, role: 'member' } } });
   } catch (error) {
     console.error('Add member error:', error);
     return res.status(500).json({ success: false, message: 'Failed to add member' });
   }
 };
 
-// ✅ GET Members — JOIN project_roles เพื่อส่ง role_id + permissions กลับมาด้วย
 const getMembers = async (req, res) => {
   try {
     const { projectId } = req.params;
     const result = await pool.query(
       `SELECT
-         pm.role,
-         pm.role_id,
-         pm.joined_at,
-         u.id   AS user_id,
-         u.username,
-         u.email,
-         pr.name  AS role_name,
-         pr.color AS role_color,
-         COALESCE(pr.can_view_tasks,      false) AS can_view_tasks,
-         COALESCE(pr.can_view_finance,    false) AS can_view_finance,
-         COALESCE(pr.can_view_risk,       false) AS can_view_risk,
-         COALESCE(pr.can_view_decisions,  false) AS can_view_decisions
+         pm.role, pm.role_id, pm.joined_at,
+         u.id AS user_id, u.username, u.email,
+         pr.name AS role_name, pr.color AS role_color,
+         COALESCE(pr.can_view_tasks,     false) AS can_view_tasks,
+         COALESCE(pr.can_view_finance,   false) AS can_view_finance,
+         COALESCE(pr.can_view_risk,      false) AS can_view_risk,
+         COALESCE(pr.can_view_decisions, false) AS can_view_decisions
        FROM project_members pm
-       JOIN  users         u  ON pm.user_id   = u.id
+       JOIN users u ON pm.user_id = u.id
        LEFT JOIN project_roles pr ON pm.role_id = pr.id
        WHERE pm.project_id = $1
        ORDER BY CASE pm.role WHEN 'owner' THEN 1 ELSE 2 END, pm.joined_at ASC`,
@@ -317,7 +258,6 @@ const getMembers = async (req, res) => {
   }
 };
 
-// ✅ REMOVE Member
 const removeMember = async (req, res) => {
   try {
     const { projectId, userId } = req.params;
@@ -333,7 +273,7 @@ const removeMember = async (req, res) => {
     }
 
     const targetCheck = await pool.query(
-      `SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2`,
+      `SELECT role, u.username FROM project_members pm JOIN users u ON pm.user_id = u.id WHERE pm.project_id = $1 AND pm.user_id = $2`,
       [projectId, userId]
     );
 
@@ -345,6 +285,10 @@ const removeMember = async (req, res) => {
       [projectId, userId]
     );
 
+    // ✅ log action
+    const actor = req.user?.username || req.user?.email || 'Unknown';
+    await logAction(req, actor, 'Removed Member', targetCheck.rows[0].username);
+
     return res.status(200).json({ success: true, message: 'Member removed successfully' });
   } catch (error) {
     console.error('Remove member error:', error);
@@ -352,13 +296,4 @@ const removeMember = async (req, res) => {
   }
 };
 
-module.exports = {
-  getProjects,
-  getProject,
-  createProject,
-  updateProject,
-  deleteProject,
-  addMember,
-  getMembers,
-  removeMember,
-};
+module.exports = { getProjects, getProject, createProject, updateProject, deleteProject, addMember, getMembers, removeMember };

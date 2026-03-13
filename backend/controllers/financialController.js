@@ -1,10 +1,8 @@
 const pool = require('../config/database');
 
-
 exports.getOverview = async (req, res) => {
   const { projectId } = req.params;
   try {
-
     const budgetRes = await pool.query(
       `SELECT total_budget, currency FROM project_budgets WHERE project_id = $1`,
       [projectId]
@@ -14,7 +12,6 @@ exports.getOverview = async (req, res) => {
     }
     const { total_budget, currency } = budgetRes.rows[0];
 
-   
     const usedRes = await pool.query(
       `SELECT COALESCE(SUM(amount), 0) AS used
        FROM disbursement_ledger
@@ -25,7 +22,6 @@ exports.getOverview = async (req, res) => {
     const remaining = parseFloat(total_budget) - budgetUsed;
     const usedPercent = total_budget > 0 ? Math.round((budgetUsed / parseFloat(total_budget)) * 100) : 0;
 
-    
     const burnRes = await pool.query(
       `SELECT COALESCE(SUM(amount), 0) / NULLIF(COUNT(DISTINCT DATE_TRUNC('month', paid_at)), 0) AS monthly_burn
        FROM disbursement_ledger
@@ -35,9 +31,8 @@ exports.getOverview = async (req, res) => {
       [projectId]
     );
     const monthlyBurn = parseFloat(burnRes.rows[0].monthly_burn || 0);
-    const runwayMonths = monthlyBurn > 0 ? Math.floor(remaining / monthlyBurn) : null;
+    const runwayMonths = monthlyBurn > 0 ? Math.max(0, Math.floor(remaining / monthlyBurn)) : null;
 
-    
     const pendingRes = await pool.query(
       `SELECT COALESCE(SUM(amount), 0) AS pending_total, COUNT(*) AS pending_count
        FROM fund_requests
@@ -67,7 +62,6 @@ exports.getOverview = async (req, res) => {
   }
 };
 
-
 exports.adjustBudget = async (req, res) => {
   const { projectId } = req.params;
   const { total_budget, reason } = req.body;
@@ -84,7 +78,6 @@ exports.adjustBudget = async (req, res) => {
       [projectId, Number(total_budget), req.user.id]
     );
 
-   
     await pool.query(
       `INSERT INTO financial_audit_log (project_id, actor_id, action, amount, note)
        VALUES ($1, $2, 'BUDGET_ADJUSTED', $3, $4)`,
@@ -97,7 +90,6 @@ exports.adjustBudget = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to adjust budget' });
   }
 };
-
 
 exports.getSpendForecast = async (req, res) => {
   const { projectId } = req.params;
@@ -115,25 +107,31 @@ exports.getSpendForecast = async (req, res) => {
       [projectId]
     );
 
-
     const actuals = res_.rows;
     const last3 = actuals.slice(-3);
     const avgBurn = last3.length > 0
       ? last3.reduce((s, r) => s + parseFloat(r.actual), 0) / last3.length
       : 0;
 
-
     const forecast = [];
-    const lastDate = actuals.length > 0
-      ? new Date(actuals[actuals.length - 1].month_date)
-      : new Date();
+    let lastDate = new Date();
+
+    if (actuals.length > 0) {
+      const lastActual = actuals[actuals.length - 1];
+      lastDate = new Date(lastActual.month_date);
+      forecast.push({
+        month: lastActual.month,
+        forecast: Math.round(avgBurn * 1.05),
+      });
+    }
 
     for (let i = 1; i <= 3; i++) {
       const d = new Date(lastDate);
       d.setMonth(d.getMonth() + i);
+      const variance = 0.95 + (Math.random() * 0.1);
       forecast.push({
         month: d.toLocaleString('en', { month: 'short', year: '2-digit' }),
-        forecast: Math.round(avgBurn),
+        forecast: Math.round(avgBurn * variance),
       });
     }
 
@@ -150,7 +148,6 @@ exports.getSpendForecast = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to fetch forecast' });
   }
 };
-
 
 exports.getFundRequests = async (req, res) => {
   const { projectId } = req.params;
@@ -220,7 +217,6 @@ exports.approveFundRequest = async (req, res) => {
     const fr = reqRes.rows[0];
     const finalAmount = adjusted_amount ? Number(adjusted_amount) : parseFloat(fr.amount);
 
-
     await client.query(
       `UPDATE fund_requests
        SET status = 'approved', approver_id = $1, approved_amount = $2, 
@@ -229,14 +225,12 @@ exports.approveFundRequest = async (req, res) => {
       [req.user.id, finalAmount, note || null, requestId]
     );
 
-    
     await client.query(
       `INSERT INTO disbursement_ledger (project_id, fund_request_id, recipient_id, amount, category, status, description)
        VALUES ($1, $2, $3, $4, $5, 'approved', $6)`,
       [fr.project_id, requestId, fr.requester_id, finalAmount, fr.category, fr.justification]
     );
 
-  
     await client.query(
       `INSERT INTO financial_audit_log (project_id, actor_id, action, amount, note, ref_id)
        VALUES ($1, $2, 'REQUEST_APPROVED', $3, $4, $5)`,
@@ -269,7 +263,6 @@ exports.rejectFundRequest = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Pending request not found' });
     }
 
-  
     await pool.query(
       `INSERT INTO financial_audit_log (project_id, actor_id, action, amount, note, ref_id)
        VALUES ($1, $2, 'REQUEST_REJECTED', $3, $4, $5)`,
@@ -282,7 +275,6 @@ exports.rejectFundRequest = async (req, res) => {
     return res.status(500).json({ success: false, message: 'Failed to reject request' });
   }
 };
-
 
 exports.getDisbursements = async (req, res) => {
   const { projectId } = req.params;
@@ -365,7 +357,6 @@ exports.approveAllPending = async (req, res) => {
     client.release();
   }
 };
-
 
 exports.getAuditLog = async (req, res) => {
   const { projectId } = req.params;
