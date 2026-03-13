@@ -7,7 +7,7 @@ import Projects from './pages/Projects';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ProjectTasks from './pages/ProjectTask';
-import MyTasks from './pages/Mytasks';
+import MyTasks from './pages/MyTasks.jsx';
 import Dashboard from './pages/Dashboard';
 import RiskSentinel from './pages/RiskSentinel'; 
 
