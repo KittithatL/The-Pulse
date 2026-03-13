@@ -16,7 +16,7 @@ const projectRoutes = require('./routes/projectRoutes');
 const taskRoutes = require('./routes/taskRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const financialRoutes = require('./routes/financialRoutes');
-const decisionRoutes = require('./routes/decisionRoutes'); // ✅ เพิ่มบรรทัดนี้
+const decisionRoutes = require('./routes/decisionRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const pairingRoutes = require('./routes/paringRoutes');
 
@@ -25,9 +25,15 @@ const PORT = Number(process.env.PORT) || 5000;
 
 const server = http.createServer(app);
 
+const ALLOWED_ORIGINS = [
+  process.env.CLIENT_URL || 'http://localhost:5173',
+  'http://localhost:5173',
+  'http://localhost:5174',
+];
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE"],
     credentials: true,
   },
@@ -54,23 +60,20 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(morgan('dev'));
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: ALLOWED_ORIGINS,
   credentials: true,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ ROUTES
-// Collect lightweight request metrics (in-memory)
 app.use(metricsMiddleware());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/projects/:projectId/decisions', decisionRoutes); // ✅ เพิ่มตรงนี้
+app.use('/api/projects/:projectId/decisions', decisionRoutes);
 app.use('/api/projects/:projectId/finance', financialRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/projects/:projectId/finance', financialRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/pairing', pairingRoutes);
 
@@ -83,7 +86,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Convenience alias so frontend can call via /api baseURL
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     success: true,
@@ -108,7 +110,7 @@ app.use((err, req, res, next) => {
 const start = async () => {
   try {
     await pool.query('SELECT 1');
-    
+
     server.listen(PORT, () => {
       console.log(`
 ╔══════════════════════════════════════════════════════════╗

@@ -18,7 +18,6 @@ export default function SecuritySettings() {
   const [logsLoading, setLogsLoading] = useState(true);
   const [qrImageUrl, setQrImageUrl] = useState("");
 
-  // ✅ sync twoFAEnabled กับ user จาก context (กรณี refresh หน้า)
   useEffect(() => {
     setTwoFAEnabled(user?.twofa_enabled || false);
   }, [user]);
@@ -53,7 +52,7 @@ export default function SecuritySettings() {
     if (verifyCode.length !== 6) { toast.error("Enter the 6-digit code"); return; }
     try {
       await authAPI.verify2FA(verifyCode);
-      await refreshUser(); // ✅ refresh user จาก server
+      await refreshUser();
       setTwoFAEnabled(true);
       setStep("done");
       toast.success("2FA enabled successfully!");
@@ -66,7 +65,7 @@ export default function SecuritySettings() {
     if (!disablePassword) { toast.error("Enter your password"); return; }
     try {
       await authAPI.disable2FA(disablePassword);
-      await refreshUser(); // ✅ refresh user จาก server
+      await refreshUser();
       setTwoFAEnabled(false);
       setShowDisable(false);
       setDisablePassword("");
@@ -77,8 +76,34 @@ export default function SecuritySettings() {
     }
   };
 
-  const statusColor = { success: "#22c55e", failed_wrong_password: "#f59e0b", failed_2fa: "#f59e0b", blocked: "#ef4444", failed_user_not_found: "#6b7280" };
-  const statusLabel = { success: "✓ Success", failed_wrong_password: "✗ Wrong Password", failed_2fa: "✗ Wrong 2FA Code", blocked: "🔒 Blocked", failed_user_not_found: "✗ User Not Found" };
+  const statusColor = {
+    SUCCESS: "#22c55e", success: "#22c55e",
+    FAILED: "#ef4444", failed: "#ef4444",
+    failed_wrong_password: "#f59e0b",
+    failed_2fa: "#f59e0b",
+    BLOCKED: "#ef4444", blocked: "#ef4444",
+    failed_user_not_found: "#6b7280"
+  };
+
+  const statusLabel = {
+    SUCCESS: "✓ Success", success: "✓ Success",
+    FAILED: "✗ Failed", failed: "✗ Failed",
+    failed_wrong_password: "✗ Wrong Password",
+    failed_2fa: "✗ Wrong 2FA Code",
+    BLOCKED: "🔒 Blocked", blocked: "🔒 Blocked",
+    failed_user_not_found: "✗ User Not Found"
+  };
+
+  const formatDate = (dateStr) => {
+    return new Date(dateStr).toLocaleString("th-TH", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Bangkok"
+    });
+  };
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", padding: "32px 24px", color: "#0f172a" }}>
@@ -92,7 +117,7 @@ export default function SecuritySettings() {
         <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>Manage your authentication and account protection</div>
       </div>
 
-      {/* ── 2FA SECTION ─────────────────────────────────────────────────── */}
+      {/* 2FA SECTION */}
       <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 28, marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
           <div>
@@ -209,7 +234,7 @@ export default function SecuritySettings() {
         )}
       </div>
 
-      {/* ── LOGIN HISTORY ────────────────────────────────────────────────── */}
+      {/* LOGIN HISTORY */}
       <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: 16, padding: 28 }}>
         <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Login History</div>
         <div style={{ color: "#64748b", fontSize: 13, marginBottom: 20 }}>Recent sign-in activity for your account.</div>
@@ -225,7 +250,7 @@ export default function SecuritySettings() {
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ width: 8, height: 8, borderRadius: "50%", background: statusColor[log.status] || "#94a3b8", flexShrink: 0 }} />
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: statusColor[log.status] || "#0f172a" }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: statusColor[log.status] || "#64748b" }}>
                       {statusLabel[log.status] || log.status}
                     </div>
                     <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 1 }}>
@@ -234,7 +259,7 @@ export default function SecuritySettings() {
                   </div>
                 </div>
                 <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "right" }}>
-                  {new Date(log.created_at).toLocaleString("th-TH", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  {formatDate(log.created_at)}
                 </div>
               </div>
             ))}
